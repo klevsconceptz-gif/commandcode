@@ -5,14 +5,14 @@
   <!-- Dark gradient overlay for readability -->
   <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,14,39,0.7) 0%,rgba(10,14,39,0.45) 40%,rgba(10,14,39,0.75) 75%,rgba(10,14,39,0.95) 100%);z-index:1"></div>
   <!-- Content overlay -->
-  <div style="position:relative;z-index:2;text-align:center;padding:6rem 2rem 3rem;max-width:900px;width:100%">
+  <div style="position:relative;z-index:2;text-align:center;padding:6rem 1.5rem 3rem;max-width:900px;width:100%">
     <div style="font-size:3.5rem;margin-bottom:0.5rem">🚀</div>
-    <h1 style="font-size:2.8rem;font-weight:800;background:linear-gradient(135deg,#00d4ff,#7b2ff7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.5rem;line-height:1.2">Quantum Space X</h1>
-    <p style="font-size:1.15rem;color:#c8c8e0;margin-bottom:2.5rem;max-width:700px;margin-left:auto;margin-right:auto;line-height:1.7">The next-generation investment platform. Earn up to <strong style="color:#22c55e">100% ROI</strong> with our multi-stage investment system. Powered by blockchain technology and AI-driven market analysis.</p>
-    <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
-      <button class="btn btn-primary" style="padding:0.9rem 2.5rem;font-size:1.05rem;font-weight:700" onclick="showRegister()">✨ Sign Up Now</button>
-      <button class="btn btn-outline" style="padding:0.9rem 2.5rem;font-size:1.05rem" onclick="showLogin()">🔑 Sign In</button>
-      <button class="btn btn-outline" style="padding:0.9rem 2rem;font-size:1.05rem;border-color:#7b2ff7;color:#7b2ff7" onclick="navTo('/markets')">📈 View Markets</button>
+    <h1 style="font-size:clamp(1.8rem,5vw,2.8rem);font-weight:800;background:linear-gradient(135deg,#00d4ff,#7b2ff7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.5rem;line-height:1.2">Quantum Space X</h1>
+    <p style="font-size:clamp(0.9rem,2.5vw,1.15rem);color:#c8c8e0;margin-bottom:2.5rem;max-width:700px;margin-left:auto;margin-right:auto;line-height:1.7">The next-generation investment platform. Earn up to <strong style="color:#22c55e">100% ROI</strong> with our multi-stage investment system. Powered by blockchain technology and AI-driven market analysis.</p>
+    <div style="display:flex;gap:0.8rem;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-primary" style="padding:0.9rem 2rem;font-size:clamp(0.85rem,2vw,1.05rem);font-weight:700" onclick="showRegister()">✨ Sign Up Now</button>
+      <button class="btn btn-outline" style="padding:0.9rem 2rem;font-size:clamp(0.85rem,2vw,1.05rem)" onclick="showLogin()">🔑 Sign In</button>
+      <button class="btn btn-outline" style="padding:0.9rem 1.5rem;font-size:clamp(0.85rem,2vw,1.05rem);border-color:#7b2ff7;color:#7b2ff7" onclick="navTo('/markets')">📈 View Markets</button>
     </div>
     <!-- Scroll indicator -->
     <div style="margin-top:3rem;opacity:0.6;animation:bounce 2s infinite">
@@ -22,9 +22,9 @@
 </div>
 
 <!-- Investment Stages -->
-<div style="max-width:1200px;margin:0 auto;padding:0 2rem 3rem">
+<div style="max-width:1200px;margin:0 auto;padding:0 clamp(1rem,3vw,2rem) clamp(1rem,3vw,3rem)">
   <h2 style="text-align:center;font-size:2rem;font-weight:700;background:linear-gradient(135deg,#00d4ff,#7b2ff7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:2rem">💎 Investment Stages</h2>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.5rem">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:1.5rem">
     <div class="glass" style="padding:2rem;text-align:center;border-top:3px solid #00d4ff;transition:transform 0.3s" onmouseover="this.style.transform='translateY(-6px)'" onmouseout="this.style.transform='none'">
       <div style="font-size:2.5rem;margin-bottom:0.5rem">🥉</div>
       <h3 style="color:#00d4ff;margin:0 0 0.5rem">Stage 1</h3>
@@ -57,9 +57,9 @@
 </div>
 
 <!-- How It Works -->
-<div style="max-width:1200px;margin:0 auto;padding:0 2rem 3rem">
+<div style="max-width:1200px;margin:0 auto;padding:0 clamp(1rem,3vw,2rem) clamp(1rem,3vw,3rem)">
   <h2 style="text-align:center;font-size:1.8rem;font-weight:700;color:#e0e0e0;margin-bottom:2rem">🔄 How It Works</h2>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:1.5rem">
     <div class="glass" style="padding:1.5rem;text-align:center">
       <div style="font-size:2rem;margin-bottom:0.5rem">1️⃣</div>
       <h4 style="color:#00d4ff;margin:0 0 0.5rem">Create Account</h4>
@@ -84,9 +84,9 @@
 </div>
 
 <!-- Payment Methods -->
-<div style="max-width:1200px;margin:0 auto;padding:0 2rem 3rem">
+<div style="max-width:1200px;margin:0 auto;padding:0 clamp(1rem,3vw,2rem) clamp(1rem,3vw,3rem)">
   <h2 style="text-align:center;font-size:1.8rem;font-weight:700;color:#e0e0e0;margin-bottom:2rem">💳 Accepted Payment Methods</h2>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(140px,100%),1fr));gap:1rem">
     <div class="glass" style="padding:1rem;text-align:center"><div style="font-size:2rem;margin-bottom:0.3rem">₿</div><p style="color:#f7931a;font-weight:600;margin:0;font-size:0.85rem">Bitcoin</p></div>
     <div class="glass" style="padding:1rem;text-align:center"><div style="font-size:2rem;margin-bottom:0.3rem">$</div><p style="color:#00d632;font-weight:600;margin:0;font-size:0.85rem">Cash App</p></div>
     <div class="glass" style="padding:1rem;text-align:center"><div style="font-size:2rem;margin-bottom:0.3rem">PP</div><p style="color:#003087;font-weight:600;margin:0;font-size:0.85rem">PayPal</p></div>
@@ -97,7 +97,7 @@
 </div>
 
 <!-- FAQ Section -->
-<div style="max-width:900px;margin:0 auto;padding:0 2rem 3rem">
+<div style="max-width:900px;margin:0 auto;padding:0 clamp(1rem,3vw,2rem) clamp(1rem,3vw,3rem)">
   <h2 style="text-align:center;font-size:1.8rem;font-weight:700;color:#e0e0e0;margin-bottom:2rem">❓ Frequently Asked Questions</h2>
   <div id="faqContainer">
     <div class="glass" style="padding:1rem 1.5rem;margin-bottom:0.8rem;cursor:pointer" onclick="this.querySelector('.faq-a').style.display=this.querySelector('.faq-a').style.display==='block'?'none':'block'">
@@ -128,9 +128,9 @@
 </div>
 
 <!-- Contact / Support Section -->
-<div style="max-width:900px;margin:0 auto;padding:0 2rem 3rem">
+<div style="max-width:900px;margin:0 auto;padding:0 clamp(1rem,3vw,2rem) clamp(1rem,3vw,3rem)">
   <h2 style="text-align:center;font-size:1.8rem;font-weight:700;color:#e0e0e0;margin-bottom:2rem">📞 Contact & Support</h2>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.5rem">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:1.5rem">
     <div class="glass" style="padding:1.5rem;text-align:center">
       <div style="font-size:2rem;margin-bottom:0.5rem">📧</div>
       <h4 style="color:#00d4ff;margin:0 0 0.5rem">Email</h4>
@@ -150,7 +150,7 @@
 </div>
 
 <!-- Footer -->
-<div style="text-align:center;padding:2rem;color:#555;font-size:0.8rem;border-top:1px solid rgba(255,255,255,0.05);margin-top:2rem">
+<div style="text-align:center;padding:clamp(1rem,2vw,2rem);color:#555;font-size:0.8rem;border-top:1px solid rgba(255,255,255,0.05);margin-top:2rem">
   <p style="margin:0">© 2024 Quantum Space X. All rights reserved.</p>
   <p style="margin:0.3rem 0 0">🚀 Empowering Your Financial Future</p>
 </div>

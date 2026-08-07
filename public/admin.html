@@ -1,8 +1,8 @@
-<div style="max-width:1400px;margin:0 auto;padding:1.5rem">
+<div style="max-width:1400px;margin:0 auto;padding:clamp(0.8rem,2vw,1.5rem)">
 <h2 style="color:#f59e0b;margin-bottom:1rem">👑 Admin Panel</h2>
-<div id="adminStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.8rem;margin-bottom:1.5rem"></div>
+<div id="adminStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(140px,100%),1fr));gap:0.8rem;margin-bottom:1.5rem"></div>
 
-<div style="display:flex;gap:0.4rem;margin-bottom:1.5rem;flex-wrap:wrap;font-size:0.85rem">
+<div class="tab-strip">
 <button class="btn btn-primary btn-sm" onclick="window.showAdminSection('transactions')">📋 Transactions</button>
 <button class="btn btn-outline btn-sm" onclick="window.showAdminSection('users')">👥 Users</button>
 <button class="btn btn-outline btn-sm" onclick="window.showAdminSection('payments')">💳 Payments</button>
@@ -14,7 +14,7 @@
 <button class="btn btn-outline btn-sm" onclick="window.showAdminSection('settings')">⚙️ Settings</button>
 </div>
 
-<div id="adminContent" class="glass" style="padding:2rem"></div>
+<div id="adminContent" class="glass" style="padding:clamp(0.8rem,2vw,2rem)"></div>
 </div>
 
 <script>

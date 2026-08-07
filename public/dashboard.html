@@ -1,8 +1,8 @@
-<div style="max-width:1200px;margin:0 auto;padding:2rem">
+<div style="max-width:1200px;margin:0 auto;padding:clamp(1rem,3vw,2rem)">
 <h2 style="color:#00d4ff;margin-bottom:1.5rem">📊 Dashboard</h2>
-<div id="dashStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem"></div>
+<div id="dashStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));gap:0.8rem;margin-bottom:2rem"></div>
 
-<div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;flex-wrap:wrap">
+<div class="tab-strip">
 <button class="btn btn-primary btn-sm" onclick="window.showSection('wallet')">💳 Wallet</button>
 <button class="btn btn-outline btn-sm" onclick="window.showSection('deposit')">💰 Deposit</button>
 <button class="btn btn-outline btn-sm" onclick="window.showSection('withdraw')">💸 Withdraw</button>
@@ -10,7 +10,7 @@
 <button class="btn btn-outline btn-sm" onclick="window.showSection('change-password')">🔒 Password</button>
 </div>
 
-<div id="dashContent" class="glass" style="padding:2rem"></div>
+<div id="dashContent" class="glass" style="padding:clamp(1rem,3vw,2rem)"></div>
 </div>
 
 <script>

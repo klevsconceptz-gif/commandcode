@@ -14,6 +14,9 @@
 
 <!-- Navigation -->
 <nav class="nav-bar">
+  <div class="nav-hamburger" id="navHamburger" onclick="toggleDrawer()">
+    <span></span><span></span><span></span>
+  </div>
   <div class="nav-logo" style="cursor:pointer" onclick="navTo('/')">QS | Quantum Space X</div>
   <div class="nav-links">
     <a href="#/" onclick="navTo('/')">Home</a>
@@ -24,6 +27,19 @@
     <span id="authBtn"></span>
   </div>
 </nav>
+
+<!-- Mobile Drawer -->
+<div class="nav-drawer-overlay" id="navOverlay" onclick="closeDrawer()"></div>
+<div class="nav-drawer" id="navDrawer">
+  <a href="#/" onclick="navTo('/');closeDrawer()">🏠 Home</a>
+  <a href="#/shop" onclick="navTo('/shop');closeDrawer()">🛍 Shop</a>
+  <a href="#/markets" onclick="navTo('/markets');closeDrawer()">📈 Markets</a>
+  <a href="#/heatmap" onclick="navTo('/heatmap');closeDrawer()">🗺 Heatmap</a>
+  <a href="#/faq" onclick="navTo('/faq');closeDrawer()">❓ FAQ</a>
+  <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.08)">
+    <span id="authBtnMobile"></span>
+  </div>
+</div>
 
 <!-- Page Content Container -->
 <div id="pageContent"></div>
@@ -39,6 +55,24 @@
 <div id="chatbotMount"></div>
 
 <script>
+// ===== Mobile Drawer =====
+function toggleDrawer() {
+  const drawer = document.getElementById('navDrawer');
+  const overlay = document.getElementById('navOverlay');
+  const hamburger = document.getElementById('navHamburger');
+  const isOpen = drawer.classList.contains('open');
+  drawer.classList.toggle('open', !isOpen);
+  overlay.classList.toggle('open', !isOpen);
+  hamburger.classList.toggle('open', !isOpen);
+  document.body.style.overflow = isOpen ? '' : 'hidden';
+}
+function closeDrawer() {
+  document.getElementById('navDrawer').classList.remove('open');
+  document.getElementById('navOverlay').classList.remove('open');
+  document.getElementById('navHamburger').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
 // ===== Global State =====
 const API = '';
 let token = localStorage.getItem('qs_token');
@@ -78,15 +112,21 @@ function showToast(msg, type = 'info') {
 // ===== Auth Button State =====
 function updateAuthBtn() {
   const el = document.getElementById('authBtn');
-  if (!el) return;
+  const mEl = document.getElementById('authBtnMobile');
   if (token && currentUser) {
     if (currentUser.isAdmin) {
-      el.innerHTML = '<a href="#/admin" onclick="navTo(\'/admin\')" style="color:#f59e0b;font-weight:600">Admin</a> <a onclick="logout()" class="btn btn-outline" style="padding:0.3rem 0.8rem;font-size:0.8rem;margin-left:0.5rem">Logout</a>';
+      const html = '<a href="#/admin" onclick="navTo(\'/admin\')" style="color:#f59e0b;font-weight:600">Admin</a> <a onclick="logout()" class="btn btn-outline" style="padding:0.3rem 0.8rem;font-size:0.8rem;margin-left:0.5rem">Logout</a>';
+      if (el) el.innerHTML = html;
+      if (mEl) mEl.innerHTML = '<a href="#/admin" onclick="navTo(\'/admin\');closeDrawer()" style="color:#f59e0b;font-weight:600;font-size:1.05rem">👑 Admin Panel</a><a onclick="logout();closeDrawer()" style="color:#ff3232;cursor:pointer">🚪 Logout</a>';
     } else {
-      el.innerHTML = '<a href="#/dashboard" onclick="navTo(\'/dashboard\')" style="color:#00d4ff;font-weight:600">Dashboard</a> <a onclick="logout()" class="btn btn-outline" style="padding:0.3rem 0.8rem;font-size:0.8rem;margin-left:0.5rem">Logout</a>';
+      const html = '<a href="#/dashboard" onclick="navTo(\'/dashboard\')" style="color:#00d4ff;font-weight:600">Dashboard</a> <a onclick="logout()" class="btn btn-outline" style="padding:0.3rem 0.8rem;font-size:0.8rem;margin-left:0.5rem">Logout</a>';
+      if (el) el.innerHTML = html;
+      if (mEl) mEl.innerHTML = '<a href="#/dashboard" onclick="navTo(\'/dashboard\');closeDrawer()" style="color:#00d4ff;font-weight:600;font-size:1.05rem">📊 Dashboard</a><a onclick="logout();closeDrawer()" style="color:#ff3232;cursor:pointer">🚪 Logout</a>';
     }
   } else {
-    el.innerHTML = '<a onclick="showLogin()" style="cursor:pointer;color:#a0a0c0;font-weight:500">Sign In</a> <button onclick="showRegister()" class="btn btn-primary" style="padding:0.3rem 1rem;font-size:0.8rem;margin-left:0.5rem">Sign Up</button>';
+    const html = '<a onclick="showLogin()" style="cursor:pointer;color:#a0a0c0;font-weight:500">Sign In</a> <button onclick="showRegister()" class="btn btn-primary" style="padding:0.3rem 1rem;font-size:0.8rem;margin-left:0.5rem">Sign Up</button>';
+    if (el) el.innerHTML = html;
+    if (mEl) mEl.innerHTML = '<a onclick="showLogin();closeDrawer()" style="color:#00d4ff;cursor:pointer;font-size:1.05rem">🔑 Sign In</a><a onclick="showRegister();closeDrawer()" style="color:#22c55e;cursor:pointer;font-size:1.05rem">✨ Sign Up</a>';
   }
 }
 
