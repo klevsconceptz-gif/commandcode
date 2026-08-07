@@ -159,7 +159,7 @@ app.post('/api/auth/login', async c => {
   }
   await db.prepare('UPDATE users SET login_attempts=0, locked_until=NULL, last_login=? WHERE id=?').bind(now(), user.id).run();
   const token = await signToken({userId:user.id, isAdmin:user.is_admin}, c.env);
-  return c.json({token, user:{id:user.id, username:user.username, email:user.email, full_name:user.full_name, isAdmin:user.is_admin, investment_plan:user.investment_plan, balance:user.balance, total_deposit:user.total_deposit}});
+  return c.json({token, user:{id:user.id, username:user.username, email:user.email, full_name:user.full_name, isAdmin:Boolean(user.is_admin), investment_plan:user.investment_plan, balance:user.balance, total_deposit:user.total_deposit}});
 });
 
 app.post('/api/auth/logout', c => c.json({message:'Logged out'}));
