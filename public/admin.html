@@ -1,0 +1,296 @@
+<div style="max-width:1400px;margin:0 auto;padding:1.5rem">
+<h2 style="color:#f59e0b;margin-bottom:1rem">👑 Admin Panel</h2>
+<div id="adminStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.8rem;margin-bottom:1.5rem"></div>
+
+<div style="display:flex;gap:0.4rem;margin-bottom:1.5rem;flex-wrap:wrap;font-size:0.85rem">
+<button class="btn btn-primary btn-sm" onclick="window.showAdminSection('transactions')">📋 Transactions</button>
+<button class="btn btn-outline btn-sm" onclick="window.showAdminSection('users')">👥 Users</button>
+<button class="btn btn-outline btn-sm" onclick="window.showAdminSection('payments')">💳 Payments</button>
+<button class="btn btn-outline btn-sm" onclick="window.showAdminSection('roi')">📈 ROI</button>
+<button class="btn btn-outline btn-sm" onclick="window.showAdminSection('orders')">🛍 Orders</button>
+<button class="btn btn-outline btn-sm" onclick="window.showAdminSection('tickets')">🎫 Tickets</button>
+<button class="btn btn-outline btn-sm" onclick="window.showAdminSection('announcements')">📢 Announce</button>
+<button class="btn btn-outline btn-sm" onclick="window.showAdminSection('stock-trades')">📊 Stocks</button>
+<button class="btn btn-outline btn-sm" onclick="window.showAdminSection('settings')">⚙️ Settings</button>
+</div>
+
+<div id="adminContent" class="glass" style="padding:2rem"></div>
+</div>
+
+<script>
+window.showAdminSection = function(section) {
+  const sections = ['transactions','users','payments','roi','orders','tickets','announcements','stock-trades','settings'];
+  const btns = document.querySelectorAll('.btn-sm');
+  btns.forEach((b,i) => { if(i<sections.length) b.className = sections[i]===section ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm'; });
+  
+  const el = document.getElementById('adminContent');
+  if (section === 'users') window.loadAdminUsers();
+  else if (section === 'transactions') window.loadAdminTransactions();
+  else if (section === 'payments') window.loadAdminPayments();
+  else if (section === 'announcements') window.loadAdminAnnouncements();
+  else if (section === 'orders') window.loadAdminOrders();
+  else if (section === 'tickets') window.loadAdminTickets();
+  else if (section === 'roi') window.loadAdminROI();
+  else if (section === 'settings') window.loadAdminSettings();
+  else if (section === 'stock-trades') window.loadAdminStockTrades();
+};
+
+window.loadAdminStats = async function() {
+  try {
+    const s = await (await fetch('/api/admin/stats')).json();
+    const el = document.getElementById('adminStats');
+    if (!el) return;
+    el.innerHTML = [
+      {l:'Users',v:s.totalUsers,c:'#00d4ff',i:'👥'},
+      {l:'Active',v:s.activeUsers,c:'#22c55e',i:'✅'},
+      {l:'Deposits',v:'$'+Number(s.totalDeposits).toFixed(0),c:'#7b2ff7',i:'💰'},
+      {l:'Withdrawals',v:'$'+Number(s.totalWithdrawals).toFixed(0),c:'#f59e0b',i:'💸'},
+      {l:'Pending Dep',v:s.pendingDeposits,c:'#f59e0b',i:'⏳'},
+      {l:'Pending Wd',v:s.pendingWithdrawals,c:'#ff3232',i:'⏳'},
+      {l:'Total Balance',v:'$'+Number(s.totalBalance).toFixed(0),c:'#22c55e',i:'💎'}
+    ].map(x=>`<div class="glass" style="padding:0.8rem;text-align:center"><p style="color:#a0a0c0;font-size:0.7rem;margin:0">${x.i} ${x.l}</p><p style="font-size:1.1rem;font-weight:700;color:${x.c};margin:0.2rem 0 0">${x.v}</p></div>`).join('');
+  } catch(e) {}
+};
+
+// === Users ===
+window.loadAdminUsers = async function() {
+  const el = document.getElementById('adminContent');
+  el.innerHTML = '<h3 style="color:#00d4ff">👥 Users</h3><p style="color:#a0a0c0">Loading...</p>';
+  try {
+    const users = await (await fetch('/api/admin/users')).json();
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">👥 All Users</h3>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.4rem">ID</th><th style="text-align:left;padding:0.4rem">Username</th><th style="text-align:left;padding:0.4rem">Email</th><th style="text-align:left;padding:0.4rem">Balance</th><th style="text-align:left;padding:0.4rem">Deposit</th><th style="text-align:left;padding:0.4rem">Stage</th><th style="text-align:left;padding:0.4rem">Active</th><th style="text-align:left;padding:0.4rem">Actions</th></tr></thead><tbody>';
+    users.forEach(u => {
+      html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)">
+        <td style="padding:0.4rem">${u.id}</td>
+        <td style="padding:0.4rem;font-weight:600">${u.username}</td>
+        <td style="padding:0.4rem;color:#a0a0c0">${u.email||''}</td>
+        <td style="padding:0.4rem">$${(u.balance||0).toFixed(2)}</td>
+        <td style="padding:0.4rem">$${(u.total_deposit||0).toFixed(2)}</td>
+        <td style="padding:0.4rem"><span class="badge badge-pending">${u.investment_plan}</span></td>
+        <td style="padding:0.4rem;color:${u.is_active?'#22c55e':'#ff3232'}">${u.is_active?'Yes':'No'}</td>
+        <td style="padding:0.4rem">
+          <button class="btn btn-outline btn-sm" onclick="window.toggleUser(${u.id})">${u.is_active?'Disable':'Enable'}</button>
+          <button class="btn btn-outline btn-sm" onclick="window.unlockUser(${u.id})">Unlock</button>
+        </td></tr>`;
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">👥 Users</h3><p style="color:#ff3232">Error</p>'; }
+};
+
+window.toggleUser = async function(id) { await fetch('/api/admin/toggle-user/'+id,{method:'POST'}); showToast('User toggled'); window.loadAdminUsers(); };
+window.unlockUser = async function(id) { await fetch('/api/admin/user/'+id+'/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}); showToast('User unlocked','success'); };
+
+// === Transactions ===
+window.loadAdminTransactions = async function() {
+  const el = document.getElementById('adminContent');
+  el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#a0a0c0">Loading...</p>';
+  try {
+    const txs = await (await fetch('/api/admin/transactions')).json();
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📋 Transactions</h3>';
+    if (!txs.length) { html += '<p style="color:#a0a0c0">No transactions yet.</p>'; }
+    txs.forEach(t => {
+      const bc = t.status==='approved'?'badge-approved':t.status==='rejected'?'badge-rejected':'badge-pending';
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:0.7rem;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;gap:0.5rem">
+        <div style="flex:1;min-width:200px">
+          <strong style="color:#fff">${t.username||'N/A'}</strong> — 
+          <span style="color:${t.type==='deposit'?'#22c55e':'#f59e0b'}">${t.type}</span> 
+          <strong>$${Number(t.amount).toFixed(2)}</strong>
+          <span class="badge ${bc}" style="margin-left:0.5rem">${t.status}</span>
+          <span style="color:#a0a0c0;font-size:0.8rem;margin-left:0.5rem">${t.payment_method||''}</span>
+          <br><span style="color:#555;font-size:0.75rem">${new Date(t.created_at).toLocaleString()}</span>
+        </div>
+        ${t.status==='pending'?`<div style="display:flex;gap:0.3rem">
+          <button class="btn btn-success btn-sm" onclick="window.approveTx(${t.id})">✓ Approve</button>
+          <button class="btn btn-danger btn-sm" onclick="window.rejectTx(${t.id})">✗ Reject</button>
+        </div>`:''}
+      </div>`;
+    });
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#ff3232">Error</p>'; }
+};
+
+window.approveTx = async function(id) { await fetch('/api/admin/transaction/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'approved'})}); showToast('Approved','success'); window.loadAdminTransactions(); window.loadAdminStats(); };
+window.rejectTx = async function(id) { await fetch('/api/admin/transaction/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'rejected'})}); showToast('Rejected','error'); window.loadAdminTransactions(); window.loadAdminStats(); };
+
+// === Payment Methods ===
+window.loadAdminPayments = async function() {
+  const el = document.getElementById('adminContent');
+  el.innerHTML = '<h3 style="color:#00d4ff">💳 Payment Methods</h3><p style="color:#a0a0c0">Loading...</p>';
+  try {
+    const methods = await (await fetch('/api/admin/payment-methods')).json();
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">💳 Payment Methods</h3>';
+    methods.forEach(m => {
+      const details = m.details || [];
+      html += `<div class="glass" style="padding:1rem;margin-bottom:0.8rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+          <div><strong style="color:#fff">${m.display_name}</strong> <span style="color:#a0a0c0">(${m.method})</span></div>
+          <div>
+            <span class="badge ${m.is_active?'badge-approved':'badge-rejected'}">${m.is_active?'Active':'Inactive'}</span>
+            <button class="btn btn-outline btn-sm" style="margin-left:0.3rem" onclick="window.togglePayment('${m.method}',${m.is_active?0:1})">${m.is_active?'Disable':'Enable'}</button>
+          </div>
+        </div>
+        ${details.length ? '<div style="font-size:0.85rem;color:#a0a0c0">' + details.map(d=>`<span style="margin-right:1rem">${d.label}: <strong style="color:#fff">${d.value}</strong></span>`).join('') + '</div>' : ''}
+      </div>`;
+    });
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">💳 Payments</h3><p style="color:#ff3232">Error</p>'; }
+};
+
+window.togglePayment = async function(method, isActive) {
+  await fetch('/api/admin/payment-methods/'+method,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_active:isActive})});
+  showToast('Payment method updated'); window.loadAdminPayments();
+};
+
+// === Announcements ===
+window.loadAdminAnnouncements = async function() {
+  const el = document.getElementById('adminContent');
+  try {
+    const anns = await (await fetch('/api/admin/announcements')).json();
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📢 Announcements</h3>';
+    html += '<div class="glass" style="padding:1rem;margin-bottom:1rem"><div class="form-group"><input id="annTitle" placeholder="Title" style="width:100%"></div><div class="form-group"><textarea id="annMsg" placeholder="Message" rows="3" style="width:100%;resize:vertical"></textarea></div><button class="btn btn-primary" onclick="window.createAnnouncement()">Create Announcement</button></div>';
+    anns.forEach(a => {
+      html += `<div style="padding:0.7rem;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center">
+        <div><strong style="color:#fff">${a.title}</strong> <span style="color:#a0a0c0;font-size:0.8rem">${new Date(a.created_at).toLocaleDateString()}</span><p style="color:#a0a0c0;font-size:0.85rem;margin:0.3rem 0 0">${a.message}</p></div>
+        <button class="btn btn-danger btn-sm" onclick="window.deleteAnnouncement(${a.id})">Delete</button>
+      </div>`;
+    });
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📢 Announcements</h3><p style="color:#ff3232">Error</p>'; }
+};
+
+window.createAnnouncement = async function() {
+  await fetch('/api/admin/announcements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:document.getElementById('annTitle').value,message:document.getElementById('annMsg').value})});
+  showToast('Announcement created','success'); window.loadAdminAnnouncements();
+};
+window.deleteAnnouncement = async function(id) {
+  await fetch('/api/admin/announcements/'+id,{method:'DELETE'}); showToast('Deleted'); window.loadAdminAnnouncements();
+};
+
+// === Orders ===
+window.loadAdminOrders = async function() {
+  const el = document.getElementById('adminContent');
+  try {
+    const orders = await (await fetch('/api/admin/product-orders')).json();
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">🛍 Product Orders</h3>';
+    if (!orders.length) { html += '<p style="color:#a0a0c0">No orders yet.</p>'; }
+    orders.forEach(o => {
+      const bc = o.status==='approved'?'badge-approved':o.status==='rejected'?'badge-rejected':'badge-pending';
+      html += `<div style="padding:0.7rem;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
+        <div><strong style="color:#fff">${o.product_name}</strong> — $${Number(o.product_price).toFixed(2)} <span class="badge ${bc}">${o.status}</span> by <span style="color:#a0a0c0">${o.username||'N/A'}</span>${o.shipping_address?'<br><span style="color:#555;font-size:0.8rem">Ship to: '+o.shipping_address+'</span>':''}</div>
+        ${o.status==='pending'?`<div style="display:flex;gap:0.3rem"><button class="btn btn-success btn-sm" onclick="window.updateOrder(${o.id},'approved')">Approve</button><button class="btn btn-danger btn-sm" onclick="window.updateOrder(${o.id},'rejected')">Reject</button></div>`:''}
+      </div>`;
+    });
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">🛍 Orders</h3><p style="color:#ff3232">Error</p>'; }
+};
+
+window.updateOrder = async function(id, status) {
+  await fetch('/api/admin/product-orders/'+id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+  showToast('Order '+status); window.loadAdminOrders();
+};
+
+// === Tickets ===
+window.loadAdminTickets = async function() {
+  const el = document.getElementById('adminContent');
+  try {
+    const tickets = await (await fetch('/api/admin/support-tickets')).json();
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">🎫 Support Tickets</h3>';
+    if (!tickets.length) { html += '<p style="color:#a0a0c0">No tickets.</p>'; }
+    tickets.forEach(t => {
+      html += `<div style="padding:0.7rem;border-bottom:1px solid rgba(255,255,255,0.05)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong style="color:#fff">${t.subject}</strong> <span class="badge badge-pending">${t.status}</span> by <span style="color:#a0a0c0">${t.username||'Guest'}</span></div>
+          <div><button class="btn btn-success btn-sm" onclick="window.updateTicket(${t.id},'resolved')">Resolve</button> <button class="btn btn-danger btn-sm" onclick="window.deleteTicket(${t.id})">Delete</button></div>
+        </div>
+        <p style="color:#a0a0c0;font-size:0.85rem;margin:0.3rem 0 0">${t.message}</p>
+      </div>`;
+    });
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">🎫 Tickets</h3><p style="color:#ff3232">Error</p>'; }
+};
+
+window.updateTicket = async function(id, status) {
+  await fetch('/api/admin/support-ticket/'+id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+  showToast('Ticket updated'); window.loadAdminTickets();
+};
+window.deleteTicket = async function(id) {
+  await fetch('/api/admin/support-ticket/'+id,{method:'DELETE'}); showToast('Ticket deleted'); window.loadAdminTickets();
+};
+
+// === ROI Processing ===
+window.loadAdminROI = async function() {
+  const el = document.getElementById('adminContent');
+  el.innerHTML = '<h3 style="color:#00d4ff">📈 ROI Processing</h3><p style="color:#a0a0c0">Loading...</p>';
+  try {
+    const cycles = await (await fetch('/api/admin/roi-cycles')).json();
+    let html = `<h3 style="color:#00d4ff;margin-bottom:1rem">📈 ROI Processing</h3>
+    <button class="btn btn-primary" onclick="window.processROI()" style="margin-bottom:1rem">⚡ Process Daily ROI Now</button>
+    <div id="roiResult"></div>
+    <div class="glass" style="padding:1rem;margin-bottom:1rem">
+      <p style="color:#a0a0c0;font-size:0.85rem;margin:0">Stage daily rates: S1 = 0.274% | S2 = 0.247% | S3 = 0.219% | S4 = 0.192%</p>
+      <p style="color:#f59e0b;font-size:0.85rem;margin:0.3rem 0 0">⚠️ ROI must be triggered manually by admin. No automatic cron.</p>
+    </div>`;
+    if (cycles.length) {
+      html += '<table style="width:100%;border-collapse:collapse;font-size:0.8rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.3rem">User</th><th style="text-align:left;padding:0.3rem">Stage</th><th style="text-align:left;padding:0.3rem">ROI%</th><th style="text-align:left;padding:0.3rem">Base</th><th style="text-align:left;padding:0.3rem">Amount</th><th style="text-align:left;padding:0.3rem">Date</th></tr></thead><tbody>';
+      cycles.forEach(c => {
+        html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)"><td style="padding:0.3rem">${c.username||''}</td><td style="padding:0.3rem">${c.stage}</td><td style="padding:0.3rem">${c.roi_percent}%</td><td style="padding:0.3rem">$${Number(c.deposit_base).toFixed(2)}</td><td style="padding:0.3rem;color:#22c55e">$${Number(c.roi_amount).toFixed(4)}</td><td style="padding:0.3rem;color:#a0a0c0">${new Date(c.cycle_date).toLocaleDateString()}</td></tr>`;
+      });
+      html += '</tbody></table>';
+    } else {
+      html += '<p style="color:#a0a0c0;font-size:0.85rem">No ROI cycles recorded yet.</p>';
+    }
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📈 ROI</h3><p style="color:#ff3232">Error</p>'; }
+};
+
+window.processROI = async function() {
+  try {
+    const r = await (await fetch('/api/admin/process-roi',{method:'POST'})).json();
+    const div = document.getElementById('roiResult');
+    if (div) div.innerHTML = '<p style="color:#22c55e">✅ ' + r.message + '</p>';
+    setTimeout(()=>window.loadAdminROI(), 1500);
+  } catch(e) { showToast('ROI processing failed', 'error'); }
+};
+
+// === Settings ===
+window.loadAdminSettings = async function() {
+  const el = document.getElementById('adminContent');
+  try {
+    const s = await (await fetch('/api/admin/settings')).json();
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">⚙️ Settings</h3>';
+    for (const [k,v] of Object.entries(s)) {
+      html += `<div style="padding:0.5rem;border-bottom:1px solid rgba(255,255,255,0.05)"><strong style="color:#a0a0c0">${k}</strong>: <span style="color:#fff">${v}</span></div>`;
+    }
+    if (!Object.keys(s).length) html += '<p style="color:#a0a0c0">No settings configured.</p>';
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">⚙️ Settings</h3><p style="color:#ff3232">Error</p>'; }
+};
+
+// === Stock Trades ===
+window.loadAdminStockTrades = async function() {
+  const el = document.getElementById('adminContent');
+  el.innerHTML = '<h3 style="color:#00d4ff">📊 Stock Trades</h3><p style="color:#a0a0c0">Loading...</p>';
+  try {
+    const trades = await (await fetch('/api/admin/stock-trades')).json();
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📊 Stock Trades</h3>';
+    if (!trades.length) { html += '<p style="color:#a0a0c0">No stock trades.</p>'; }
+    trades.forEach(t => {
+      const bc = t.status==='completed'?'badge-completed':t.status==='rejected'?'badge-rejected':'badge-pending';
+      html += `<div style="padding:0.7rem;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
+        <div><strong style="color:#fff">${t.username||'N/A'}</strong> — <span style="color:${t.type==='buy'?'#22c55e':'#f59e0b'}">${t.type.toUpperCase()}</span> ${t.shares} ${t.symbol} @ $${t.price} = <strong>$${Number(t.total).toFixed(2)}</strong> <span class="badge ${bc}">${t.status}</span></div>
+        ${t.status==='pending'?`<div style="display:flex;gap:0.3rem"><button class="btn btn-success btn-sm" onclick="window.approveStockTrade(${t.id})">Approve</button><button class="btn btn-danger btn-sm" onclick="window.rejectStockTrade(${t.id})">Reject</button></div>`:''}
+      </div>`;
+    });
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📊 Stocks</h3><p style="color:#ff3232">Error</p>'; }
+};
+
+window.approveStockTrade = async function(id) { await fetch('/api/admin/stock-trade/'+id+'/approve',{method:'POST'}); showToast('Trade approved','success'); window.loadAdminStockTrades(); };
+window.rejectStockTrade = async function(id) { await fetch('/api/admin/stock-trade/'+id+'/reject',{method:'POST'}); showToast('Trade rejected','error'); window.loadAdminStockTrades(); };
+
+// === Init ===
+window.loadAdminStats();
+window.showAdminSection('transactions');
+</script>

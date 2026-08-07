@@ -1,0 +1,16 @@
+name = "quantumx"
+main = "src/index.js"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "quantum-spacex-db"
+database_id = "7ba6077d-fbdd-46fc-8554-b10dd5cc68de"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[vars]
+ENVIRONMENT = "production"

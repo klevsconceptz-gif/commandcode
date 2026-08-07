@@ -1,0 +1,124 @@
+<div style="max-width:1200px;margin:0 auto;padding:2rem">
+<h2 style="color:#00d4ff;margin-bottom:1.5rem">🛍 Shop — Tesla & Optimus</h2>
+<p style="color:#a0a0c0;margin-bottom:2rem">Order premium Tesla vehicles and the revolutionary Optimus Humanoid Bot. Payment via wallet deposit.</p>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem">
+  <!-- Tesla Model S -->
+  <div class="glass" style="overflow:hidden;transition:transform 0.3s" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='none'">
+    <img src="/images/tesla-model-s.jpg" alt="Tesla Model S" style="width:100%;height:200px;object-fit:cover;display:block">
+    <div style="padding:1.5rem">
+      <h3 style="color:#fff;margin:0 0 0.3rem">Tesla Model S</h3>
+      <p style="color:#a0a0c0;font-size:0.85rem;margin:0 0 1rem">Luxury electric sedan • 405mi range • 0-60 in 1.99s</p>
+      <p style="font-size:1.8rem;font-weight:700;color:#00d4ff;margin:0 0 1rem">$79,990</p>
+      <button class="btn btn-primary" style="width:100%" onclick="window.startOrder('Tesla Model S',79990)">Order Now</button>
+    </div>
+  </div>
+  <!-- Tesla Model Y -->
+  <div class="glass" style="overflow:hidden;transition:transform 0.3s" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='none'">
+    <img src="/images/tesla-model-y.jpg" alt="Tesla Model Y" style="width:100%;height:200px;object-fit:cover;display:block">
+    <div style="padding:1.5rem">
+      <h3 style="color:#fff;margin:0 0 0.3rem">Tesla Model Y</h3>
+      <p style="color:#a0a0c0;font-size:0.85rem;margin:0 0 1rem">Compact SUV • 330mi range • Best-selling EV</p>
+      <p style="font-size:1.8rem;font-weight:700;color:#00d4ff;margin:0 0 1rem">$49,990</p>
+      <button class="btn btn-primary" style="width:100%" onclick="window.startOrder('Tesla Model Y',49990)">Order Now</button>
+    </div>
+  </div>
+  <!-- Tesla Model 3 -->
+  <div class="glass" style="overflow:hidden;transition:transform 0.3s" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='none'">
+    <img src="/images/tesla-model-3.jpg" alt="Tesla Model 3" style="width:100%;height:200px;object-fit:cover;display:block">
+    <div style="padding:1.5rem">
+      <h3 style="color:#fff;margin:0 0 0.3rem">Tesla Model 3</h3>
+      <p style="color:#a0a0c0;font-size:0.85rem;margin:0 0 1rem">Affordable electric • 358mi range • Mass market</p>
+      <p style="font-size:1.8rem;font-weight:700;color:#00d4ff;margin:0 0 1rem">$42,990</p>
+      <button class="btn btn-primary" style="width:100%" onclick="window.startOrder('Tesla Model 3',42990)">Order Now</button>
+    </div>
+  </div>
+  <!-- Tesla Model X -->
+  <div class="glass" style="overflow:hidden;transition:transform 0.3s" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='none'">
+    <img src="/images/tesla-model-x.jpg" alt="Tesla Model X" style="width:100%;height:200px;object-fit:cover;display:block">
+    <div style="padding:1.5rem">
+      <h3 style="color:#fff;margin:0 0 0.3rem">Tesla Model X</h3>
+      <p style="color:#a0a0c0;font-size:0.85rem;margin:0 0 1rem">Falcon-wing SUV • 348mi range • Premium luxury</p>
+      <p style="font-size:1.8rem;font-weight:700;color:#00d4ff;margin:0 0 1rem">$89,990</p>
+      <button class="btn btn-primary" style="width:100%" onclick="window.startOrder('Tesla Model X',89990)">Order Now</button>
+    </div>
+  </div>
+  <!-- Cybertruck -->
+  <div class="glass" style="overflow:hidden;transition:transform 0.3s" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='none'">
+    <img src="/images/tesla-cybertruck.jpg" alt="Tesla Cybertruck" style="width:100%;height:200px;object-fit:cover;display:block">
+    <div style="padding:1.5rem">
+      <h3 style="color:#fff;margin:0 0 0.3rem">Tesla Cybertruck</h3>
+      <p style="color:#a0a0c0;font-size:0.85rem;margin:0 0 1rem">Angular electric truck • 340mi range • Stainless steel</p>
+      <p style="font-size:1.8rem;font-weight:700;color:#00d4ff;margin:0 0 1rem">$69,990</p>
+      <button class="btn btn-primary" style="width:100%" onclick="window.startOrder('Tesla Cybertruck',69990)">Order Now</button>
+    </div>
+  </div>
+  <!-- Optimus Bot -->
+  <div class="glass" style="overflow:hidden;transition:transform 0.3s" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='none'">
+    <img src="/images/optimus-bot.jpg" alt="Optimus Humanoid Bot" style="width:100%;height:200px;object-fit:cover;display:block">
+    <div style="padding:1.5rem">
+      <h3 style="color:#fff;margin:0 0 0.3rem">Optimus Humanoid Bot</h3>
+      <p style="color:#a0a0c0;font-size:0.85rem;margin:0 0 1rem">AI-powered humanoid robot • General purpose • Future of labor</p>
+      <p style="font-size:1.8rem;font-weight:700;color:#00d4ff;margin:0 0 1rem">$25,000</p>
+      <button class="btn btn-primary" style="width:100%" onclick="window.startOrder('Optimus Bot',25000)">Order Now</button>
+    </div>
+  </div>
+</div>
+
+<!-- Order Modal -->
+<div id="orderModal" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,0.7);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+  <div class="glass-strong" style="width:90%;max-width:500px;padding:2rem" id="orderBox"></div>
+</div>
+</div>
+
+<script>
+let orderProduct = null;
+let orderPrice = 0;
+
+window.startOrder = function(name, price) {
+  if (!token) { showLogin(); return; }
+  orderProduct = name;
+  orderPrice = price;
+  document.getElementById('orderModal').style.display = 'flex';
+  document.getElementById('orderBox').innerHTML = `
+    <h3 style="color:#00d4ff;margin-bottom:1rem">🛍️ Order: ${name}</h3>
+    <p style="font-size:1.5rem;font-weight:700;color:#00d4ff;margin-bottom:1.5rem">$${price.toLocaleString()}</p>
+    <div class="form-group"><label>Payment Method</label>
+      <select id="orderPayMethod" style="width:100%;padding:0.7rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff">
+        <option value="bitcoin">Bitcoin (BTC)</option>
+        <option value="cashapp">Cash App</option>
+        <option value="paypal">PayPal</option>
+        <option value="zelle">Zelle</option>
+        <option value="wire">Wire Transfer</option>
+        <option value="western-union">Western Union</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Shipping Address</label><textarea id="orderAddr" rows="3" placeholder="Full shipping address" style="width:100%;padding:0.7rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;resize:vertical"></textarea></div>
+    <button class="btn btn-primary" style="width:100%;margin-bottom:0.5rem" onclick="window.submitOrder()">Submit Order</button>
+    <button class="btn btn-outline" style="width:100%" onclick="document.getElementById('orderModal').style.display='none'">Cancel</button>
+    <p style="color:#a0a0c0;font-size:0.8rem;margin-top:1rem;text-align:center">💰 A deposit request for $${price.toLocaleString()} will be created. Admin will confirm payment details.</p>`;
+};
+
+window.submitOrder = async function() {
+  const method = document.getElementById('orderPayMethod').value;
+  const addr = document.getElementById('orderAddr').value.trim();
+  if (!addr) return showToast('Please enter shipping address', 'error');
+  
+  try {
+    const dep = await (await fetch('/api/user/deposit', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({amount:orderPrice, payment_method:method})
+    })).json();
+    if (dep.error) return showToast(dep.error, 'error');
+    
+    const r = await (await fetch('/api/shop/order', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:currentUser.id, product_name:orderProduct, product_price:orderPrice, quantity:1, payment_method:method, shipping_address:addr})
+    })).json();
+    if (r.error) return showToast(r.error, 'error');
+    
+    document.getElementById('orderModal').style.display = 'none';
+    showToast('Order placed! Deposit Ref: ' + dep.reference + ' | Order Ref: ' + r.reference, 'success');
+  } catch(e) { showToast('Order failed', 'error'); }
+};
+</script>

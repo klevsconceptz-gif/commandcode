@@ -1,0 +1,207 @@
+<div style="max-width:1200px;margin:0 auto;padding:2rem">
+<h2 style="color:#00d4ff;margin-bottom:1.5rem">📊 Dashboard</h2>
+<div id="dashStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem"></div>
+
+<div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;flex-wrap:wrap">
+<button class="btn btn-primary btn-sm" onclick="window.showSection('wallet')">💳 Wallet</button>
+<button class="btn btn-outline btn-sm" onclick="window.showSection('deposit')">💰 Deposit</button>
+<button class="btn btn-outline btn-sm" onclick="window.showSection('withdraw')">💸 Withdraw</button>
+<button class="btn btn-outline btn-sm" onclick="window.showSection('transactions')">📋 Transactions</button>
+<button class="btn btn-outline btn-sm" onclick="window.showSection('change-password')">🔒 Password</button>
+</div>
+
+<div id="dashContent" class="glass" style="padding:2rem"></div>
+</div>
+
+<script>
+window.showSection = function(section) {
+  const el = document.getElementById('dashContent');
+  // Highlight active section button
+  const btns = el.parentElement.querySelectorAll('.btn-sm');
+  btns.forEach(b => b.className = b.className.replace('btn-primary','btn-outline'));
+  
+  if (section === 'wallet') {
+    window.loadWalletData();
+  } else if (section === 'deposit') {
+    el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">💰 Make Deposit</h3>
+    <div style="max-width:500px">
+      <div class="form-group"><label>Amount ($100 - $1,000,000)</label><input id="depAmt" type="number" min="100" step="0.01" placeholder="Enter amount"></div>
+      <div class="form-group"><label>Payment Method</label>
+        <select id="depMethod">
+          <option value="bitcoin">Bitcoin (BTC)</option>
+          <option value="cashapp">Cash App</option>
+          <option value="paypal">PayPal</option>
+          <option value="zelle">Zelle</option>
+          <option value="wire">Wire Transfer</option>
+          <option value="western-union">Western Union</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="window.handleDeposit()">Submit Deposit</button>
+      <div id="depResult" style="margin-top:1rem"></div>
+    </div>
+    <div id="paymentDetails" style="margin-top:1.5rem"></div>`;
+    window.loadPaymentDetails();
+  } else if (section === 'withdraw') {
+    el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">💸 Request Withdrawal</h3>
+    <div style="max-width:500px">
+      <div class="form-group"><label>Withdrawal Amount</label><input id="wdAmt" type="number" step="0.01" placeholder="Enter amount"></div>
+      <div class="form-group"><label>Withdraw From</label>
+        <select id="wdSource">
+          <option value="balance">Main Balance</option>
+          <option value="roi">ROI Balance</option>
+          <option value="bonus">Bonus Balance</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Payment Method</label>
+        <select id="wdMethod">
+          <option value="bitcoin">Bitcoin (BTC)</option>
+          <option value="cashapp">Cash App</option>
+          <option value="paypal">PayPal</option>
+          <option value="zelle">Zelle</option>
+          <option value="wire">Wire Transfer</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Wallet/Payout Address</label><input id="wdAddr" placeholder="Your wallet/address for payout"></div>
+      <button class="btn btn-primary" onclick="window.handleWithdraw()">Submit Withdrawal</button>
+      <div id="wdResult" style="margin-top:1rem"></div>
+    </div>`;
+  } else if (section === 'transactions') {
+    window.loadTransactions();
+  } else if (section === 'change-password') {
+    el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">🔒 Change Password</h3>
+    <div style="max-width:400px">
+      <div class="form-group"><label>Current Password</label><input id="cpOld" type="password" placeholder="Current password"></div>
+      <div class="form-group"><label>New Password</label><input id="cpNew" type="password" placeholder="Min 8 chars"></div>
+      <button class="btn btn-primary" onclick="window.handleChangePassword()">Change Password</button>
+      <div id="cpResult" style="margin-top:1rem"></div>
+    </div>`;
+  }
+};
+
+window.loadPaymentDetails = async function() {
+  try {
+    const methods = await (await fetch('/api/payment-methods')).json();
+    const sel = document.getElementById('depMethod');
+    if (!sel) return;
+    sel.addEventListener('change', function() {
+      const method = methods.find(m => m.method === this.value);
+      const div = document.getElementById('paymentDetails');
+      if (method && method.details && method.details.length) {
+        div.innerHTML = '<h4 style="color:#f59e0b;margin-bottom:0.8rem">💳 Payment Details</h4>' +
+          method.details.map(d => `<div class="glass" style="padding:0.8rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center"><div><span style="color:#a0a0c0;font-size:0.8rem">${d.label}</span><br><strong style="color:#fff;word-break:break-all">${d.value}</strong></div>${d.copyable ? `<button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText('${d.value}');showToast('Copied!','success')">Copy</button>` : ''}</div>`).join('');
+      } else {
+        div.innerHTML = '';
+      }
+    });
+    sel.dispatchEvent(new Event('change'));
+  } catch(e) {}
+};
+
+window.handleDeposit = async function() {
+  const amt = parseFloat(document.getElementById('depAmt').value);
+  const method = document.getElementById('depMethod').value;
+  if (!amt || amt < 100) return showToast('Minimum deposit is $100', 'error');
+  try {
+    const r = await (await fetch('/api/user/deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({amount:amt, payment_method:method})})).json();
+    if (r.error) return document.getElementById('depResult').innerHTML = '<p style="color:#ff3232">' + r.error + '</p>';
+    document.getElementById('depResult').innerHTML = '<p style="color:#22c55e">✅ Deposit submitted! Reference: <strong>' + r.reference + '</strong></p><p style="color:#a0a0c0;font-size:0.85rem;margin-top:0.5rem">Awaiting admin approval. You\'ll be notified once confirmed.</p>';
+    window.loadDashStats();
+  } catch(e) { showToast('Deposit failed', 'error'); }
+};
+
+window.handleWithdraw = async function() {
+  const amt = parseFloat(document.getElementById('wdAmt').value);
+  const method = document.getElementById('wdMethod').value;
+  const addr = document.getElementById('wdAddr').value;
+  if (!amt || amt <= 0) return showToast('Enter a valid amount', 'error');
+  if (!addr) return showToast('Enter wallet/address', 'error');
+  try {
+    const r = await (await fetch('/api/user/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({amount:amt, payment_method:method, wallet_address:addr})})).json();
+    if (r.error) return document.getElementById('wdResult').innerHTML = '<p style="color:#ff3232">' + r.error + '</p>';
+    document.getElementById('wdResult').innerHTML = '<p style="color:#22c55e">✅ Withdrawal submitted! Reference: <strong>' + r.reference + '</strong></p><p style="color:#a0a0c0;font-size:0.85rem;margin-top:0.5rem">Admin will review and send funds to your address.</p>';
+  } catch(e) { showToast('Withdrawal failed', 'error'); }
+};
+
+window.handleChangePassword = async function() {
+  const oldPw = document.getElementById('cpOld').value;
+  const newPw = document.getElementById('cpNew').value;
+  if (!oldPw || !newPw) return showToast('Fill all fields', 'error');
+  if (newPw.length < 8) return showToast('New password must be 8+ chars', 'error');
+  try {
+    const r = await (await fetch('/api/auth/change-password', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({current_password:oldPw, new_password:newPw})})).json();
+    if (r.error) return document.getElementById('cpResult').innerHTML = '<p style="color:#ff3232">' + r.error + '</p>';
+    document.getElementById('cpResult').innerHTML = '<p style="color:#22c55e">✅ Password changed successfully!</p>';
+  } catch(e) { showToast('Failed', 'error'); }
+};
+
+window.loadTransactions = async function() {
+  const el = document.getElementById('dashContent');
+  el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#a0a0c0">Loading...</p>';
+  try {
+    const r = await (await fetch('/api/user/transactions')).json();
+    if (!r.length) { el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#a0a0c0">No transactions yet. Make a deposit to get started!</p>'; return; }
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📋 Transactions</h3><table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.5rem">Type</th><th style="text-align:left;padding:0.5rem">Amount</th><th style="text-align:left;padding:0.5rem">Method</th><th style="text-align:left;padding:0.5rem">Status</th><th style="text-align:left;padding:0.5rem">Date</th><th style="text-align:left;padding:0.5rem">Ref</th></tr></thead><tbody>';
+    r.forEach(t => {
+      const c = t.status==='approved'?'#22c55e':t.status==='rejected'?'#ff3232':'#f59e0b';
+      html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)"><td style="padding:0.5rem;font-weight:600;color:${t.type==='deposit'?'#22c55e':'#f59e0b'}">${t.type}</td><td style="padding:0.5rem">$${Number(t.amount).toFixed(2)}</td><td style="padding:0.5rem;color:#a0a0c0">${t.payment_method||'-'}</td><td style="padding:0.5rem;color:${c}">${t.status}</td><td style="padding:0.5rem;color:#a0a0c0;font-size:0.8rem">${new Date(t.created_at).toLocaleDateString()}</td><td style="padding:0.5rem;font-size:0.75rem">${t.reference||''}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#ff3232">Error loading</p>'; }
+};
+
+window.loadWalletData = async function() {
+  const el = document.getElementById('dashContent');
+  el.innerHTML = '<h3 style="color:#00d4ff">💳 Wallet</h3><p style="color:#a0a0c0">Loading...</p>';
+  try {
+    const w = await (await fetch('/api/user/wallet')).json();
+    const u = await (await fetch('/api/user/profile')).json();
+    el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">💳 Wallet Overview</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem">
+      <div class="glass" style="padding:1.5rem;text-align:center;border-top:3px solid #00d4ff">
+        <p style="color:#a0a0c0;font-size:0.8rem;margin:0">💰 Deposit Balance</p>
+        <p style="font-size:1.8rem;font-weight:700;color:#00d4ff;margin:0.3rem 0 0">$${(w.deposit_balance||0).toFixed(2)}</p>
+      </div>
+      <div class="glass" style="padding:1.5rem;text-align:center;border-top:3px solid #7b2ff7">
+        <p style="color:#a0a0c0;font-size:0.8rem;margin:0">📈 ROI Balance</p>
+        <p style="font-size:1.8rem;font-weight:700;color:#7b2ff7;margin:0.3rem 0 0">$${(w.roi_balance||0).toFixed(2)}</p>
+      </div>
+      <div class="glass" style="padding:1.5rem;text-align:center;border-top:3px solid #22c55e">
+        <p style="color:#a0a0c0;font-size:0.8rem;margin:0">🎁 Bonus Balance</p>
+        <p style="font-size:1.8rem;font-weight:700;color:#22c55e;margin:0.3rem 0 0">$${(w.bonus_balance||0).toFixed(2)}</p>
+      </div>
+      <div class="glass" style="padding:1.5rem;text-align:center;border-top:3px solid #f59e0b">
+        <p style="color:#a0a0c0;font-size:0.8rem;margin:0">🏆 Total ROI Earned</p>
+        <p style="font-size:1.8rem;font-weight:700;color:#f59e0b;margin:0.3rem 0 0">$${(w.total_roi_earned||0).toFixed(2)}</p>
+      </div>
+    </div>
+    <div class="glass" style="padding:1rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+      <div><span style="color:#a0a0c0">Main Balance:</span> <strong style="color:#fff">$${(u.balance||0).toFixed(2)}</strong></div>
+      <div><span style="color:#a0a0c0">Stage:</span> <strong style="color:#00d4ff">${w.stage}</strong></div>
+      <div><span style="color:#a0a0c0">Annual ROI:</span> <strong style="color:#22c55e">${w.roi}%</strong></div>
+      <div><span style="color:#a0a0c0">Daily Rate:</span> <strong style="color:#f59e0b">${(w.roi/365).toFixed(4)}%</strong></div>
+    </div>`;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">💳 Wallet</h3><p style="color:#ff3232">Error loading wallet</p>'; }
+};
+
+window.loadDashStats = async function() {
+  try {
+    const u = await (await fetch('/api/user/profile')).json();
+    const el = document.getElementById('dashStats');
+    if (!el) return;
+    el.innerHTML = [
+      {label:'Total Balance',val:'$'+(u.balance||0).toFixed(2),color:'#00d4ff',icon:'💰'},
+      {label:'Total Deposits',val:'$'+(u.total_deposit||0).toFixed(2),color:'#7b2ff7',icon:'📊'},
+      {label:'Total Profit',val:'$'+(u.total_profit||0).toFixed(2),color:'#22c55e',icon:'📈'},
+      {label:'Investment Plan',val:u.investment_plan,color:'#f59e0b',icon:'🎯'},
+      {label:'Stage ROI',val:getStageROI(u.investment_plan)+'%',color:'#22c55e',icon:'💎'},
+      {label:'Status',val:u.is_active?'Active':'Inactive',color:u.is_active?'#22c55e':'#ff3232',icon:'⚡'}
+    ].map(s => `<div class="glass" style="padding:1rem;text-align:center"><p style="color:#a0a0c0;font-size:0.75rem;margin:0">${s.icon} ${s.label}</p><p style="font-size:1.2rem;font-weight:700;color:${s.color};margin:0.2rem 0 0">${s.val}</p></div>`).join('');
+  } catch(e) {}
+};
+
+function getStageROI(s){if(s==='Stage 4')return 70;if(s==='Stage 3')return 80;if(s==='Stage 2')return 90;return 100;}
+
+window.loadDashStats();
+window.showSection('wallet');
+</script>

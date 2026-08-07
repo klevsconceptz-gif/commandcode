@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+.cache/
+.dev.vars
+*.log
+.env
+.env.local
+.env.production

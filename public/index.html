@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#0a0e27">
+<title>Quantum Space X</title>
+<link rel="stylesheet" href="/css/style.css">
+<!-- v2.1 -->
+</head>
+<body>
+<!-- Galaxy Background -->
+<div class="galaxy-bg"></div>
+
+<!-- Navigation -->
+<nav class="nav-bar">
+  <div class="nav-logo" style="cursor:pointer" onclick="navTo('/')">QS | Quantum Space X</div>
+  <div class="nav-links">
+    <a href="#/" onclick="navTo('/')">Home</a>
+    <a href="#/shop" onclick="navTo('/shop')">Shop</a>
+    <a href="#/markets" onclick="navTo('/markets')">Markets</a>
+    <a href="#/faq" onclick="navTo('/faq')">FAQ</a>
+    <span id="authBtn"></span>
+  </div>
+</nav>
+
+<!-- Page Content Container -->
+<div id="pageContent"></div>
+
+<!-- Auth Modal -->
+<div id="authModal" style="display:none">
+  <div class="auth-modal">
+    <div class="auth-box glass-strong" id="authBox"></div>
+  </div>
+</div>
+
+<!-- Chatbot Mount -->
+<div id="chatbotMount"></div>
+
+<script>
+// ===== Global State =====
+const API = '';
+let token = localStorage.getItem('qs_token');
+let currentUser = null;
+
+// ===== Fetch Interceptor (auto-attach JWT) =====
+const origFetch = window.fetch;
+window.fetch = function(url, opts = {}) {
+  let path = typeof url === 'string' ? url : (url instanceof Request ? url.url : '');
+  if (path.startsWith('/api/') && token) {
+    opts.headers = opts.headers || {};
+    if (!opts.headers['Authorization']) {
+      opts.headers['Authorization'] = 'Bearer ' + token;
+    }
+  }
+  return origFetch(API + url, opts);
+};
+
+// ===== Toast Notification =====
+function showToast(msg, type = 'info') {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  if (type === 'error') {
+    t.style.background = 'rgba(255,50,50,0.15)';
+    t.style.borderColor = '#ff3232';
+    t.style.color = '#ff3232';
+  } else if (type === 'success') {
+    t.style.background = 'rgba(34,197,94,0.15)';
+    t.style.borderColor = '#22c55e';
+    t.style.color = '#22c55e';
+  }
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+// ===== Auth Button State =====
+function updateAuthBtn() {
+  const el = document.getElementById('authBtn');
+  if (!el) return;
+  if (token && currentUser) {
+    if (currentUser.isAdmin) {
+      el.innerHTML = '<a href="#/admin" onclick="navTo(\'/admin\')" style="color:#f59e0b;font-weight:600">Admin</a> <a onclick="logout()" class="btn btn-outline" style="padding:0.3rem 0.8rem;font-size:0.8rem;margin-left:0.5rem">Logout</a>';
+    } else {
+      el.innerHTML = '<a href="#/dashboard" onclick="navTo(\'/dashboard\')" style="color:#00d4ff;font-weight:600">Dashboard</a> <a onclick="logout()" class="btn btn-outline" style="padding:0.3rem 0.8rem;font-size:0.8rem;margin-left:0.5rem">Logout</a>';
+    }
+  } else {
+    el.innerHTML = '<a onclick="showLogin()" style="cursor:pointer;color:#a0a0c0;font-weight:500">Sign In</a> <button onclick="showRegister()" class="btn btn-primary" style="padding:0.3rem 1rem;font-size:0.8rem;margin-left:0.5rem">Sign Up</button>';
+  }
+}
+
+// ===== Auth Forms =====
+function showLogin() {
+  document.getElementById('authModal').style.display = 'flex';
+  document.getElementById('authBox').innerHTML = `
+    <h2>🔑 Sign In</h2>
+    <div class="form-group"><label>Username / Email / Phone</label><input id="loginId" placeholder="Enter identifier" autocomplete="username"></div>
+    <div class="form-group"><label>Password</label><input id="loginPw" type="password" placeholder="Enter password" autocomplete="current-password" onkeypress="if(event.key==='Enter')doLogin()"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:1rem" onclick="doLogin()">Sign In</button>
+    <div class="auth-switch">Don't have an account? <a onclick="showRegister()"><strong>Sign Up</strong></a></div>
+    <div class="auth-switch" style="margin-top:0.5rem"><a onclick="showForgot()">Forgot Password?</a></div>`;
+}
+
+function showRegister() {
+  document.getElementById('authModal').style.display = 'flex';
+  document.getElementById('authBox').innerHTML = `
+    <h2>✨ Create Account</h2>
+    <div class="form-group"><label>Username</label><input id="regUser" placeholder="3-30 chars, letters/numbers/_"></div>
+    <div class="form-group"><label>Full Name</label><input id="regName" placeholder="Full name"></div>
+    <div class="form-group"><label>Email</label><input id="regEmail" type="email" placeholder="Email"></div>
+    <div class="form-group"><label>Phone</label><input id="regPhone" placeholder="+1234567890"></div>
+    <div class="form-group"><label>Password</label><input id="regPw" type="password" placeholder="Min 8 chars"></div>
+    <div class="form-group"><label>Confirm Password</label><input id="regPw2" type="password" placeholder="Repeat password"></div>
+    <div class="form-group"><label>Reset Phrase</label><input id="regRP" placeholder="Min 4 chars (for password recovery)"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:1rem" onclick="doRegister()">Create Account</button>
+    <div class="auth-switch">Already have an account? <a onclick="showLogin()"><strong>Sign In</strong></a></div>`;
+}
+
+function showForgot() {
+  document.getElementById('authBox').innerHTML = `
+    <h2>🔑 Forgot Password</h2>
+    <div id="forgotStep1">
+      <div class="form-group"><label>Username / Email / Phone</label><input id="forgotId" placeholder="Enter identifier"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="doForgotVerify()">Verify</button>
+    </div>
+    <div id="forgotStep2" style="display:none">
+      <p id="forgotEmail" style="color:#a0a0c0;font-size:0.9rem;margin-bottom:1rem"></p>
+      <div class="form-group"><label>Reset Phrase</label><input id="forgotRP" placeholder="Enter your reset phrase"></div>
+      <div class="form-group"><label>New Password</label><input id="forgotNewPw" type="password" placeholder="Min 8 chars"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="doForgotReset()">Reset Password</button>
+    </div>
+    <div class="auth-switch"><a onclick="showLogin()">Back to Sign In</a></div>`;
+}
+
+function closeAuth() {
+  document.getElementById('authModal').style.display = 'none';
+}
+
+// Close auth modal on background click
+document.getElementById('authModal').addEventListener('click', function(e) {
+  if (e.target === this || e.target.classList.contains('auth-modal')) closeAuth();
+});
+
+// ===== Auth Actions =====
+async function doLogin() {
+  const identifier = document.getElementById('loginId').value.trim();
+  const password = document.getElementById('loginPw').value;
+  if (!identifier || !password) return showToast('Please fill all fields', 'error');
+  try {
+    const r = await (await fetch('/api/auth/login', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({identifier, password})
+    })).json();
+    if (r.error) return showToast(r.error, 'error');
+    token = r.token;
+    currentUser = r.user;
+    localStorage.setItem('qs_token', token);
+    closeAuth();
+    updateAuthBtn();
+    showToast('Welcome back, ' + r.user.username + '!', 'success');
+    navTo(currentUser.isAdmin ? '/admin' : '/dashboard');
+  } catch(e) { showToast('Login failed', 'error'); }
+}
+
+async function doRegister() {
+  const data = {
+    username: document.getElementById('regUser').value.trim(),
+    full_name: document.getElementById('regName').value.trim(),
+    email: document.getElementById('regEmail').value.trim(),
+    phone: document.getElementById('regPhone').value.trim(),
+    password: document.getElementById('regPw').value,
+    confirm_password: document.getElementById('regPw2').value,
+    reset_phrase: document.getElementById('regRP').value.trim()
+  };
+  if (!data.username || !data.email || !data.phone || !data.password) return showToast('Please fill all required fields', 'error');
+  try {
+    const r = await (await fetch('/api/auth/register', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    })).json();
+    if (r.error) return showToast(r.error, 'error');
+    token = r.token;
+    currentUser = r.user;
+    localStorage.setItem('qs_token', token);
+    closeAuth();
+    updateAuthBtn();
+    showToast('Account created! Welcome, ' + r.user.username + '!', 'success');
+    navTo('/dashboard');
+  } catch(e) { showToast('Registration failed', 'error'); }
+}
+
+function logout() {
+  token = null;
+  currentUser = null;
+  localStorage.removeItem('qs_token');
+  updateAuthBtn();
+  navTo('/');
+  showToast('Logged out', 'success');
+}
+
+// ===== Forgot Password =====
+let forgotUserId = null;
+async function doForgotVerify() {
+  const identifier = document.getElementById('forgotId').value.trim();
+  if (!identifier) return showToast('Enter your identifier', 'error');
+  try {
+    const r = await (await fetch('/api/auth/forgot-password/verify', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({identifier})
+    })).json();
+    if (r.error) return showToast(r.error, 'error');
+    forgotUserId = r.userId;
+    document.getElementById('forgotEmail').textContent = 'Verified: ' + r.email;
+    document.getElementById('forgotStep1').style.display = 'none';
+    document.getElementById('forgotStep2').style.display = 'block';
+  } catch(e) { showToast('Verification failed', 'error'); }
+}
+
+async function doForgotReset() {
+  const reset_phrase = document.getElementById('forgotRP').value.trim();
+  const new_password = document.getElementById('forgotNewPw').value;
+  if (!reset_phrase || !new_password) return showToast('Fill all fields', 'error');
+  try {
+    const r = await (await fetch('/api/auth/forgot-password/reset', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({user_id: forgotUserId, reset_phrase, new_password})
+    })).json();
+    if (r.error) return showToast(r.error, 'error');
+    showToast('Password reset successfully!', 'success');
+    closeAuth();
+    showLogin();
+  } catch(e) { showToast('Reset failed', 'error'); }
+}
+
+// ===== Auto-login with stored token =====
+async function autoLogin() {
+  if (!token) return;
+  try {
+    const r = await (await fetch('/api/user/profile')).json();
+    if (r.id) {
+      currentUser = {id: r.id, username: r.username, isAdmin: r.isAdmin};
+      updateAuthBtn();
+    } else {
+      token = null;
+      localStorage.removeItem('qs_token');
+    }
+  } catch(e) {
+    token = null;
+    localStorage.removeItem('qs_token');
+  }
+}
+
+// ===== Page Router =====
+const pageMap = {
+  '/': 'home.html',
+  '/shop': 'shop.html',
+  '/dashboard': 'dashboard.html',
+  '/admin': 'admin.html',
+  '/markets': 'stock-charts.html',
+  '/faq': 'home.html'
+};
+
+async function loadPage(path) {
+  const el = document.getElementById('pageContent');
+
+  // Guard: dashboard/admin require auth
+  if ((path === '/dashboard' || path === '/admin') && !token) {
+    showLogin();
+    return;
+  }
+  if (path === '/admin' && currentUser && !currentUser.isAdmin) {
+    showToast('Admin access required', 'error');
+    navTo('/dashboard');
+    return;
+  }
+
+  const page = pageMap[path] || 'home.html';
+
+  try {
+    const resp = await fetch('/' + page);
+    if (!resp.ok) throw new Error('Not found');
+    let html = await resp.text();
+
+    // Strip chatbot mounts (SPA has its own)
+    html = html.replace(/<div[^>]*id="chatbotMount"[^>]*>[\s\S]*?<\/div>/gi, '');
+    // Strip nav tags (SPA has its own)
+    html = html.replace(/<nav[\s\S]*?<\/nav>/gi, '');
+
+    el.innerHTML = html;
+
+    // Execute inline scripts
+    const scripts = el.querySelectorAll('script');
+    scripts.forEach(s => {
+      try {
+        const fn = new Function(s.textContent);
+        fn();
+      } catch(e) { console.error('Script error:', e); }
+    });
+
+    // Scroll: FAQ goes to FAQ section, otherwise top
+    if (path === '/faq') {
+      setTimeout(() => {
+        const faqEl = document.getElementById('faqContainer');
+        if (faqEl) faqEl.scrollIntoView({behavior: 'smooth', block: 'start'});
+      }, 200);
+    } else {
+      window.scrollTo(0, 0);
+    }
+
+    // Update active nav link
+    document.querySelectorAll('.nav-links a').forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + path);
+    });
+
+  } catch(e) {
+    el.innerHTML = '<div style="text-align:center;padding:4rem"><h2 style="color:#ff3232">404</h2><p style="color:#a0a0c0">Page not found</p></div>';
+  }
+}
+
+function navTo(path) {
+  window.location.hash = path;
+}
+
+// ===== Hash Router =====
+window.addEventListener('hashchange', () => {
+  const path = window.location.hash.slice(1) || '/';
+  if (path === '/login') { showLogin(); return; }
+  if (path === '/register') { showRegister(); return; }
+  loadPage(path);
+});
+
+// ===== Chatbot Loader =====
+function loadChatbot() {
+  fetch('/chatbot.html').then(r => r.text()).then(html => {
+    const mount = document.getElementById('chatbotMount');
+    if (!mount) return;
+    mount.innerHTML = html;
+    const scripts = mount.querySelectorAll('script');
+    scripts.forEach(s => {
+      try { new Function(s.textContent)(); } catch(e) {}
+    });
+  }).catch(() => {});
+}
+
+// ===== Initialize =====
+(async function init() {
+  await autoLogin();
+  updateAuthBtn();
+
+  const initPath = window.location.hash.slice(1) || '/';
+  if (initPath === '/login') {
+    showLogin();
+  } else if (initPath === '/register') {
+    showRegister();
+  } else {
+    loadPage(initPath);
+  }
+
+  // Load chatbot after short delay
+  setTimeout(loadChatbot, 1500);
+})();
+</script>
+</body>
+</html>
