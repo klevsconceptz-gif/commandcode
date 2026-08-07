@@ -1,12 +1,23 @@
-<!-- Hero Section -->
-<div style="max-width:1200px;margin:0 auto;padding:3rem 2rem;text-align:center">
-  <div style="font-size:3.5rem;margin-bottom:0.5rem">🚀</div>
-  <h1 style="font-size:2.8rem;font-weight:800;background:linear-gradient(135deg,#00d4ff,#7b2ff7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.5rem">Quantum Space X</h1>
-  <p style="font-size:1.15rem;color:#a0a0c0;margin-bottom:2.5rem;max-width:700px;margin-left:auto;margin-right:auto;line-height:1.7">The next-generation investment platform. Earn up to <strong style="color:#22c55e">100% ROI</strong> with our multi-stage investment system. Powered by blockchain technology and AI-driven market analysis.</p>
-  <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
-    <button class="btn btn-primary" style="padding:0.9rem 2.5rem;font-size:1.05rem;font-weight:700" onclick="showRegister()">✨ Sign Up Now</button>
-    <button class="btn btn-outline" style="padding:0.9rem 2.5rem;font-size:1.05rem" onclick="showLogin()">🔑 Sign In</button>
-    <button class="btn btn-outline" style="padding:0.9rem 2rem;font-size:1.05rem;border-color:#7b2ff7;color:#7b2ff7" onclick="navTo('/markets')">📈 View Markets</button>
+<!-- Hero Section — Full-Screen Edge-to-Edge Starship -->
+<div style="position:relative;width:100%;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;margin:0;padding:0">
+  <!-- Background Image -->
+  <img src="/images/hero-starship.jpg" alt="SpaceX Starship" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0" loading="eager">
+  <!-- Dark gradient overlay for readability -->
+  <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,14,39,0.7) 0%,rgba(10,14,39,0.45) 40%,rgba(10,14,39,0.75) 75%,rgba(10,14,39,0.95) 100%);z-index:1"></div>
+  <!-- Content overlay -->
+  <div style="position:relative;z-index:2;text-align:center;padding:6rem 2rem 3rem;max-width:900px;width:100%">
+    <div style="font-size:3.5rem;margin-bottom:0.5rem">🚀</div>
+    <h1 style="font-size:2.8rem;font-weight:800;background:linear-gradient(135deg,#00d4ff,#7b2ff7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.5rem;line-height:1.2">Quantum Space X</h1>
+    <p style="font-size:1.15rem;color:#c8c8e0;margin-bottom:2.5rem;max-width:700px;margin-left:auto;margin-right:auto;line-height:1.7">The next-generation investment platform. Earn up to <strong style="color:#22c55e">100% ROI</strong> with our multi-stage investment system. Powered by blockchain technology and AI-driven market analysis.</p>
+    <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-primary" style="padding:0.9rem 2.5rem;font-size:1.05rem;font-weight:700" onclick="showRegister()">✨ Sign Up Now</button>
+      <button class="btn btn-outline" style="padding:0.9rem 2.5rem;font-size:1.05rem" onclick="showLogin()">🔑 Sign In</button>
+      <button class="btn btn-outline" style="padding:0.9rem 2rem;font-size:1.05rem;border-color:#7b2ff7;color:#7b2ff7" onclick="navTo('/markets')">📈 View Markets</button>
+    </div>
+    <!-- Scroll indicator -->
+    <div style="margin-top:3rem;opacity:0.6;animation:bounce 2s infinite">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="2"><path d="M7 13l5 5 5-5M7 7l5 5 5-5"/></svg>
+    </div>
   </div>
 </div>
 

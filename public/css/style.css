@@ -11,7 +11,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,BlinkMacSystemFont,sans-seri
 .glass-strong{background:rgba(255,255,255,0.08);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border:1px solid rgba(255,255,255,0.15);border-radius:16px}
 
 /* Navigation */
-.nav-bar{display:flex;justify-content:space-between;align-items:center;padding:0.8rem 2rem;background:rgba(10,14,39,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.08);position:sticky;top:0;z-index:1000}
+.nav-bar{display:flex;justify-content:space-between;align-items:center;padding:0.8rem 2rem;background:rgba(10,14,39,0.75);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.06);position:sticky;top:0;z-index:1000}
 .nav-logo{font-size:1.4rem;font-weight:800;background:linear-gradient(135deg,#00d4ff,#7b2ff7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.02em}
 .nav-links{display:flex;gap:1.5rem;align-items:center}
 .nav-links a{color:#a0a0c0;text-decoration:none;font-weight:500;transition:color 0.3s;font-size:0.9rem}
@@ -110,5 +110,6 @@ tr:hover{background:rgba(255,255,255,0.02)}
 /* Animations */
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
 @keyframes glow{0%,100%{box-shadow:0 0 5px rgba(0,212,255,0.3)}50%{box-shadow:0 0 20px rgba(0,212,255,0.6)}}
+@keyframes bounce{0%,20%,50%,80%,100%{transform:translateY(0)}40%{transform:translateY(-8px)}60%{transform:translateY(-4px)}}
 .animate-pulse{animation:pulse 2s infinite}
 .animate-glow{animation:glow 2s infinite}
