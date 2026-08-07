@@ -11,135 +11,291 @@
 <div id="marketContent" class="glass" style="padding:2rem"></div>
 </div>
 
+<!-- Stock Trade Modal -->
+<div id="stockModal" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,0.7);backdrop-filter:blur(5px);align-items:center;justify-content:center">
+<div class="glass-strong" style="width:90%;max-width:460px;padding:2rem;border-radius:20px">
+<h3 id="stockModalTitle" style="color:#00d4ff;margin:0 0 1.5rem;text-align:center"></h3>
+<div style="text-align:center;margin-bottom:1rem">
+  <p style="font-size:2rem;font-weight:800;color:#fff;margin:0" id="stockModalSymbol"></p>
+  <p style="color:#a0a0c0;font-size:0.9rem;margin:0.3rem 0" id="stockModalName"></p>
+  <p style="font-size:1.4rem;font-weight:700;color:#22c55e;margin:0.5rem 0 0" id="stockModalPrice"></p>
+  <p style="color:#a0a0c0;font-size:0.8rem;margin:0.2rem 0 0" id="stockModalHeld"></p>
+</div>
+<div class="form-group">
+  <label>Number of Shares</label>
+  <input id="stockModalShares" type="number" min="0.01" step="0.01" placeholder="Enter shares" oninput="window.updateStockTotal()" style="font-size:1.1rem">
+</div>
+<div style="display:flex;justify-content:space-between;padding:0.8rem 1rem;background:rgba(0,212,255,0.08);border-radius:10px;margin-bottom:1.5rem">
+  <span style="color:#a0a0c0">Estimated Total</span>
+  <span id="stockModalTotal" style="font-size:1.2rem;font-weight:700;color:#00d4ff">$0.00</span>
+</div>
+<div style="display:flex;gap:0.8rem">
+  <button class="btn btn-outline" style="flex:1" onclick="window.closeStockModal()">Cancel</button>
+  <button id="stockModalSubmit" class="btn btn-primary" style="flex:1" onclick="window.submitStockTrade()">Confirm</button>
+</div>
+</div>
+</div>
+
 <script>
-const stocks = [
-  {symbol:'TSLA',name:'Tesla Inc.',price:248.50,change:3.2,sector:'EV'},
-  {symbol:'SPCE',name:'Virgin Galactic',price:12.80,change:-1.5,sector:'Space'},
-  {symbol:'BA',name:'Boeing Co.',price:178.30,change:0.8,sector:'Aero'},
-  {symbol:'LMT',name:'Lockheed Martin',price:475.20,change:1.1,sector:'Defense'},
-  {symbol:'RKLB',name:'Rocket Lab',price:8.45,change:5.3,sector:'Space'},
-  {symbol:'ASTR',name:'Astra Space',price:3.20,change:-2.1,sector:'Space'},
-  {symbol:'JOBY',name:'Joby Aviation',price:6.75,change:2.8,sector:'eVTOL'},
-  {symbol:'PCAR',name:'Paccar Inc.',price:102.40,change:0.5,sector:'EV'},
-  {symbol:'GM',name:'General Motors',price:45.60,change:1.2,sector:'Auto'},
-  {symbol:'F',name:'Ford Motor',price:14.30,change:-0.3,sector:'Auto'},
-  {symbol:'RIVN',name:'Rivian Auto.',price:18.90,change:4.1,sector:'EV'},
-  {symbol:'LCID',name:'Lucid Motors',price:5.40,change:-1.8,sector:'EV'},
-  {symbol:'NIO',name:'NIO Inc.',price:7.80,change:2.5,sector:'EV'},
-  {symbol:'MSTR',name:'MicroStrategy',price:1650.00,change:6.2,sector:'Crypto'}
-];
+// Market data — loaded from API with live fluctuations
+let stocks = [];
+let userPositions = {};
+let _stockModalData = null;
+
+async function loadMarketData() {
+  try {
+    stocks = await (await fetch('/api/market/stocks')).json();
+  } catch(e) {
+    // fallback
+    stocks = [
+      {symbol:'TSLA',name:'Tesla Inc.',price:248.50,change:3.2,sector:'EV'},
+      {symbol:'SPCE',name:'Virgin Galactic',price:12.80,change:-1.5,sector:'Space'},
+      {symbol:'BA',name:'Boeing Co.',price:178.30,change:0.8,sector:'Aero'},
+      {symbol:'LMT',name:'Lockheed Martin',price:475.20,change:1.1,sector:'Defense'},
+      {symbol:'RKLB',name:'Rocket Lab',price:8.45,change:5.3,sector:'Space'},
+      {symbol:'ASTR',name:'Astra Space',price:3.20,change:-2.1,sector:'Space'},
+      {symbol:'JOBY',name:'Joby Aviation',price:6.75,change:2.8,sector:'eVTOL'},
+      {symbol:'PCAR',name:'Paccar Inc.',price:102.40,change:0.5,sector:'EV'},
+      {symbol:'GM',name:'General Motors',price:45.60,change:1.2,sector:'Auto'},
+      {symbol:'F',name:'Ford Motor',price:14.30,change:-0.3,sector:'Auto'},
+      {symbol:'RIVN',name:'Rivian Auto.',price:18.90,change:4.1,sector:'EV'},
+      {symbol:'LCID',name:'Lucid Motors',price:5.40,change:-1.8,sector:'EV'},
+      {symbol:'NIO',name:'NIO Inc.',price:7.80,change:2.5,sector:'EV'},
+      {symbol:'MSTR',name:'MicroStrategy',price:1650.00,change:6.2,sector:'Crypto'}
+    ];
+  }
+  return stocks;
+}
+
+async function loadUserPositions() {
+  if (!token) { userPositions = {}; return; }
+  try {
+    const positions = await (await fetch('/api/user/stock/positions')).json();
+    userPositions = {};
+    positions.forEach(p => { userPositions[p.symbol] = Number(p.shares); });
+  } catch(e) { userPositions = {}; }
+}
 
 window.showMarketTab = function(tab) {
-  // Highlight active tab
-  const btns = document.querySelectorAll('.btn-sm');
-  btns.forEach(b => { b.className = b.textContent.toLowerCase().includes(tab) ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm'; });
-  
+  const btns = document.querySelectorAll('h2 + div .btn-sm, .btn-sm');
+  document.querySelectorAll('h2 ~ div:first-of-type .btn-sm').forEach(b => {
+    const t = b.textContent.trim().toLowerCase();
+    b.className = (t.includes(tab) || (tab==='overview'&&t.includes('overview')) || (tab==='stocks'&&t.includes('buy')) || (tab==='portfolio'&&t.includes('portfolio')) || (tab==='my-trades'&&t.includes('trade')))
+      ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm';
+  });
+
   const el = document.getElementById('marketContent');
-  
+
   if (tab === 'overview') {
-    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📊 Market Overview</h3>';
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem">';
-    stocks.forEach(s => {
-      const color = s.change >= 0 ? '#22c55e' : '#ff3232';
-      const arrow = s.change >= 0 ? '▲' : '▼';
-      html += `<div class="glass" style="padding:1rem;border-left:3px solid ${color};cursor:pointer" onclick="window.showMarketTab('stocks')">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div><p style="font-weight:700;color:#fff;margin:0;font-size:1rem">${s.symbol}</p><p style="color:#a0a0c0;font-size:0.8rem;margin:0">${s.name}</p></div>
-          <div style="text-align:right"><p style="font-size:1.2rem;font-weight:700;color:#fff;margin:0">$${s.price.toFixed(2)}</p><p style="color:${color};font-size:0.85rem;margin:0">${arrow} ${Math.abs(s.change)}%</p></div>
-        </div>
-      </div>`;
-    });
-    html += '</div>';
-    el.innerHTML = html;
-    
+    (async function() {
+      await loadMarketData();
+      await loadUserPositions();
+      let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📊 Market Overview</h3>';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem">';
+      stocks.forEach(s => {
+        const color = s.change >= 0 ? '#22c55e' : '#ff3232';
+        const arrow = s.change >= 0 ? '▲' : '▼';
+        const held = userPositions[s.symbol] || 0;
+        html += `<div class="glass" style="padding:1rem;border-left:3px solid ${color};cursor:pointer;transition:transform 0.3s" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='none'" onclick="window.showMarketTab('stocks')">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div><p style="font-weight:700;color:#fff;margin:0;font-size:1rem">${s.symbol}</p><p style="color:#a0a0c0;font-size:0.8rem;margin:0">${s.name}</p></div>
+            <div style="text-align:right"><p style="font-size:1.2rem;font-weight:700;color:#fff;margin:0">$${s.price.toFixed(2)}</p><p style="color:${color};font-size:0.85rem;margin:0">${arrow} ${Math.abs(s.change)}%</p></div>
+          </div>
+          ${held > 0 ? `<div style="margin-top:0.5rem;font-size:0.75rem;color:#00d4ff">📥 ${held} shares held</div>` : ''}
+        </div>`;
+      });
+      html += '</div>';
+      el.innerHTML = html;
+    })();
   } else if (tab === 'portfolio') {
-    if (!token) { el.innerHTML = '<p style="color:#a0a0c0;text-align:center;padding:2rem">Please <a onclick="showLogin()" style="cursor:pointer">login</a> to view your portfolio.</p>'; return; }
+    if (!token) { el.innerHTML = '<p style="color:#a0a0c0;text-align:center;padding:2rem">Please <a onclick="showLogin()" style="cursor:pointer;color:#00d4ff">login</a> to view your portfolio.</p>'; return; }
     el.innerHTML = '<h3 style="color:#00d4ff">📊 Your Portfolio</h3><p style="color:#a0a0c0">Loading...</p>';
     (async function() {
       try {
         const w = await (await fetch('/api/user/wallet')).json();
         const u = await (await fetch('/api/user/profile')).json();
-        el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">📊 Your Portfolio</h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem">
-          <div class="glass" style="padding:1.2rem;text-align:center"><p style="color:#a0a0c0;font-size:0.8rem">Total Balance</p><p style="font-size:1.5rem;font-weight:700;color:#00d4ff">$${(u.balance||0).toFixed(2)}</p></div>
-          <div class="glass" style="padding:1.2rem;text-align:center"><p style="color:#a0a0c0;font-size:0.8rem">Deposit Balance</p><p style="font-size:1.5rem;font-weight:700">$${(w.deposit_balance||0).toFixed(2)}</p></div>
-          <div class="glass" style="padding:1.2rem;text-align:center"><p style="color:#a0a0c0;font-size:0.8rem">ROI Balance</p><p style="font-size:1.5rem;font-weight:700;color:#22c55e">$${(w.roi_balance||0).toFixed(2)}</p></div>
-          <div class="glass" style="padding:1.2rem;text-align:center"><p style="color:#a0a0c0;font-size:0.8rem">Bonus Balance</p><p style="font-size:1.5rem;font-weight:700;color:#f59e0b">$${(w.bonus_balance||0).toFixed(2)}</p></div>
+        const positions = await (await fetch('/api/user/stock/positions')).json();
+        await loadMarketData();
+
+        // Calculate portfolio value
+        let stockValue = 0;
+        positions.forEach(p => {
+          const mk = stocks.find(s => s.symbol === p.symbol);
+          const cp = mk ? mk.price : Number(p.current_price || p.avg_price);
+          stockValue += cp * Number(p.shares);
+        });
+
+        const totalValue = (u.balance||0) + stockValue;
+
+        let html = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">📊 Your Portfolio</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;margin-bottom:2rem">
+          <div class="glass" style="padding:1.2rem;text-align:center"><p style="color:#a0a0c0;font-size:0.75rem">Total Value</p><p style="font-size:1.5rem;font-weight:700;color:#00d4ff">$${totalValue.toFixed(2)}</p></div>
+          <div class="glass" style="padding:1.2rem;text-align:center"><p style="color:#a0a0c0;font-size:0.75rem">Wallet Balance</p><p style="font-size:1.5rem;font-weight:700">$${(u.balance||0).toFixed(2)}</p></div>
+          <div class="glass" style="padding:1.2rem;text-align:center"><p style="color:#a0a0c0;font-size:0.75rem">Deposit Balance</p><p style="font-size:1.5rem;font-weight:700">$${(w.deposit_balance||0).toFixed(2)}</p></div>
+          <div class="glass" style="padding:1.2rem;text-align:center"><p style="color:#a0a0c0;font-size:0.75rem">ROI Balance</p><p style="font-size:1.5rem;font-weight:700;color:#22c55e">$${(w.roi_balance||0).toFixed(2)}</p></div>
+          <div class="glass" style="padding:1.2rem;text-align:center"><p style="color:#a0a0c0;font-size:0.75rem">Stock Value</p><p style="font-size:1.5rem;font-weight:700;color:#f59e0b">$${stockValue.toFixed(2)}</p></div>
         </div>
-        <div class="glass" style="padding:1.2rem;text-align:center">
+        <div class="glass" style="padding:1.2rem;text-align:center;margin-bottom:2rem">
           <p style="color:#a0a0c0;font-size:0.85rem">Stage: <strong style="color:#00d4ff">${w.stage}</strong> | Annual ROI: <strong style="color:#22c55e">${w.roi}%</strong></p>
         </div>`;
+
+        // Stock positions table
+        if (positions.length > 0) {
+          html += '<h4 style="color:#e0e0e0;margin-bottom:1rem">📈 Stock Holdings</h4>';
+          html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.5rem">Symbol</th><th style="text-align:right;padding:0.5rem">Shares</th><th style="text-align:right;padding:0.5rem">Avg Price</th><th style="text-align:right;padding:0.5rem">Current</th><th style="text-align:right;padding:0.5rem">Value</th><th style="text-align:right;padding:0.5rem">P&L</th></tr></thead><tbody>';
+          positions.forEach(p => {
+            const mk = stocks.find(s => s.symbol === p.symbol);
+            const cp = mk ? mk.price : Number(p.current_price || p.avg_price);
+            const value = cp * Number(p.shares);
+            const cost = Number(p.avg_price) * Number(p.shares);
+            const pnl = value - cost;
+            const pnlColor = pnl >= 0 ? '#22c55e' : '#ff3232';
+            html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)">
+              <td style="padding:0.5rem;font-weight:700">${p.symbol}</td>
+              <td style="padding:0.5rem;text-align:right">${Number(p.shares).toFixed(2)}</td>
+              <td style="padding:0.5rem;text-align:right">$${Number(p.avg_price).toFixed(2)}</td>
+              <td style="padding:0.5rem;text-align:right">$${cp.toFixed(2)}</td>
+              <td style="padding:0.5rem;text-align:right;font-weight:600">$${value.toFixed(2)}</td>
+              <td style="padding:0.5rem;text-align:right;color:${pnlColor};font-weight:600">${pnl>=0?'+':''}$${pnl.toFixed(2)}</td>
+            </tr>`;
+          });
+          html += '</tbody></table></div>';
+        } else {
+          html += '<p style="color:#a0a0c0;text-align:center">No stock holdings yet. Start trading!</p>';
+        }
+
+        el.innerHTML = html;
       } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📊 Portfolio</h3><p style="color:#ff3232">Error loading portfolio</p>'; }
     })();
-    
+
   } else if (tab === 'stocks') {
-    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📈 Buy & Sell Stocks</h3>';
-    html += '<table style="width:100%;border-collapse:collapse;font-size:0.9rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.5rem">Symbol</th><th style="text-align:left;padding:0.5rem">Name</th><th style="text-align:left;padding:0.5rem">Price</th><th style="text-align:left;padding:0.5rem">Change</th><th style="text-align:center;padding:0.5rem">Buy</th><th style="text-align:center;padding:0.5rem">Sell</th></tr></thead><tbody>';
-    stocks.forEach(s => {
-      const color = s.change >= 0 ? '#22c55e' : '#ff3232';
-      html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)">
-        <td style="padding:0.5rem;font-weight:700">${s.symbol}</td>
-        <td style="padding:0.5rem;color:#a0a0c0">${s.name}</td>
-        <td style="padding:0.5rem;font-weight:600">$${s.price.toFixed(2)}</td>
-        <td style="padding:0.5rem;color:${color};font-weight:600">${s.change>=0?'+':''}${s.change}%</td>
-        <td style="padding:0.5rem;text-align:center"><button class="btn btn-success btn-sm" onclick="window.buyStock('${s.symbol}',${s.price})">Buy</button></td>
-        <td style="padding:0.5rem;text-align:center"><button class="btn btn-outline btn-sm" style="border-color:#f59e0b;color:#f59e0b" onclick="window.sellStock('${s.symbol}',${s.price})">Sell</button></td>
-      </tr>`;
-    });
-    html += '</tbody></table>';
-    html += '<p style="color:#a0a0c0;font-size:0.8rem;margin-top:1rem">💡 All stock trades require admin approval. Buy = deposit to wallet, Sell = withdrawal to ROI wallet.</p>';
-    el.innerHTML = html;
-    
+    (async function() {
+      await loadMarketData();
+      await loadUserPositions();
+      let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📈 Buy & Sell Stocks</h3>';
+      html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.9rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.5rem">Symbol</th><th style="text-align:left;padding:0.5rem">Name</th><th style="text-align:right;padding:0.5rem">Price</th><th style="text-align:right;padding:0.5rem">Change</th><th style="text-align:right;padding:0.5rem">Held</th><th style="text-align:center;padding:0.5rem">Buy</th><th style="text-align:center;padding:0.5rem">Sell</th></tr></thead><tbody>';
+      stocks.forEach(s => {
+        const color = s.change >= 0 ? '#22c55e' : '#ff3232';
+        const held = userPositions[s.symbol] || 0;
+        html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)">
+          <td style="padding:0.5rem;font-weight:700">${s.symbol}</td>
+          <td style="padding:0.5rem;color:#a0a0c0">${s.name}</td>
+          <td style="padding:0.5rem;font-weight:600;text-align:right">$${s.price.toFixed(2)}</td>
+          <td style="padding:0.5rem;color:${color};font-weight:600;text-align:right">${s.change>=0?'+':''}${s.change}%</td>
+          <td style="padding:0.5rem;text-align:right;color:${held>0?'#00d4ff':'#555'}">${held>0?held.toFixed(2):'—'}</td>
+          <td style="padding:0.5rem;text-align:center"><button class="btn btn-success btn-sm" onclick="window.openStockModal('buy','${s.symbol}',${s.price},'${s.name}')">Buy</button></td>
+          <td style="padding:0.5rem;text-align:center"><button class="btn btn-outline btn-sm" style="border-color:#f59e0b;color:#f59e0b;${held<=0?'opacity:0.4;cursor:not-allowed':''}" onclick="${held>0?`window.openStockModal('sell','${s.symbol}',${s.price},'${s.name}')`:''}">Sell</button></td>
+        </tr>`;
+      });
+      html += '</tbody></table></div>';
+      html += '<p style="color:#a0a0c0;font-size:0.8rem;margin-top:1rem">💡 Buy orders create a deposit request. Sell orders create a withdrawal request. Both require admin approval. Sell proceeds go to your ROI wallet.</p>';
+      el.innerHTML = html;
+    })();
+
   } else if (tab === 'my-trades') {
-    if (!token) { el.innerHTML = '<p style="color:#a0a0c0;text-align:center;padding:2rem">Please <a onclick="showLogin()" style="cursor:pointer">login</a> to view trades.</p>'; return; }
+    if (!token) { el.innerHTML = '<p style="color:#a0a0c0;text-align:center;padding:2rem">Please <a onclick="showLogin()" style="cursor:pointer;color:#00d4ff">login</a> to view trades.</p>'; return; }
     el.innerHTML = '<h3 style="color:#00d4ff">📋 My Stock Trades</h3><p style="color:#a0a0c0">Loading...</p>';
     (async function() {
       try {
         const trades = await (await fetch('/api/user/stock/trades')).json();
         if (!trades.length) { el.innerHTML = '<h3 style="color:#00d4ff">📋 My Stock Trades</h3><p style="color:#a0a0c0">No trades yet. Go to "Buy Stocks" to start!</p>'; return; }
-        let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📋 My Stock Trades</h3><table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.4rem">Symbol</th><th style="text-align:left;padding:0.4rem">Type</th><th style="text-align:left;padding:0.4rem">Shares</th><th style="text-align:left;padding:0.4rem">Price</th><th style="text-align:left;padding:0.4rem">Total</th><th style="text-align:left;padding:0.4rem">Status</th></tr></thead><tbody>';
+        let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📋 My Stock Trades</h3><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.4rem">Symbol</th><th style="text-align:left;padding:0.4rem">Type</th><th style="text-align:right;padding:0.4rem">Shares</th><th style="text-align:right;padding:0.4rem">Price</th><th style="text-align:right;padding:0.4rem">Total</th><th style="text-align:left;padding:0.4rem">Status</th><th style="text-align:left;padding:0.4rem">Date</th></tr></thead><tbody>';
         trades.forEach(t => {
-          const c = t.status==='completed'?'#22c55e':t.status==='rejected'?'#ff3232':'#f59e0b';
-          html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)"><td style="padding:0.4rem;font-weight:600">${t.symbol}</td><td style="padding:0.4rem;color:${t.type==='buy'?'#22c55e':'#f59e0b'}">${t.type.toUpperCase()}</td><td style="padding:0.4rem">${t.shares}</td><td style="padding:0.4rem">$${t.price}</td><td style="padding:0.4rem">$${t.total.toFixed(2)}</td><td style="padding:0.4rem;color:${c}">${t.status}</td></tr>`;
+          const bc = t.status==='completed'?'badge-completed':t.status==='rejected'?'badge-rejected':'badge-pending';
+          const typeColor = t.type==='buy'?'#22c55e':'#f59e0b';
+          const dateStr = t.created_at ? new Date(t.created_at).toLocaleDateString() : '';
+          html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)">
+            <td style="padding:0.4rem;font-weight:600">${t.symbol}</td>
+            <td style="padding:0.4rem;color:${typeColor};font-weight:600">${t.type.toUpperCase()}</td>
+            <td style="padding:0.4rem;text-align:right">${Number(t.shares).toFixed(2)}</td>
+            <td style="padding:0.4rem;text-align:right">$${Number(t.price).toFixed(2)}</td>
+            <td style="padding:0.4rem;text-align:right;font-weight:600">$${Number(t.total).toFixed(2)}</td>
+            <td style="padding:0.4rem"><span class="badge ${bc}">${t.status}</span></td>
+            <td style="padding:0.4rem;color:#555;font-size:0.75rem">${dateStr}</td>
+          </tr>`;
         });
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         el.innerHTML = html;
       } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📋 Trades</h3><p style="color:#ff3232">Error loading trades</p>'; }
     })();
   }
 };
 
-window.buyStock = async function(symbol, price) {
+// ===== Stock Modal =====
+window.openStockModal = function(type, symbol, price, name) {
   if (!token) { showLogin(); return; }
-  const shares = prompt(`How many shares of ${symbol} at $${price.toFixed(2)}?`);
-  if (!shares || parseFloat(shares) <= 0) return;
-  const total = (parseFloat(shares) * price).toFixed(2);
-  if (!confirm(`Confirm: Buy ${shares} shares of ${symbol} at $${price.toFixed(2)} = $${total}\n\nThis will create a deposit request for admin approval.`)) return;
-  try {
-    const r = await (await fetch('/api/user/stock/buy', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({symbol, shares: parseFloat(shares), price})
-    })).json();
-    if (r.error) return showToast(r.error, 'error');
-    showToast('Stock buy submitted! Ref: ' + r.reference, 'success');
-  } catch(e) { showToast('Failed to submit', 'error'); }
+  _stockModalData = {type, symbol, price, name};
+  const modal = document.getElementById('stockModal');
+  modal.style.display = 'flex';
+  document.getElementById('stockModalTitle').textContent = type === 'buy' ? '📈 Buy Stock' : '📉 Sell Stock';
+  document.getElementById('stockModalSymbol').textContent = symbol;
+  document.getElementById('stockModalName').textContent = name;
+  document.getElementById('stockModalPrice').textContent = '$' + price.toFixed(2);
+  const held = userPositions[symbol] || 0;
+  document.getElementById('stockModalHeld').textContent = held > 0 ? `You hold: ${held.toFixed(2)} shares` : '';
+  document.getElementById('stockModalShares').value = '';
+  document.getElementById('stockModalShares').max = type === 'sell' && held > 0 ? held : '';
+  document.getElementById('stockModalTotal').textContent = '$0.00';
+  const submitBtn = document.getElementById('stockModalSubmit');
+  submitBtn.textContent = type === 'buy' ? '🛒 Buy Now' : '💰 Sell Now';
+  submitBtn.className = type === 'buy' ? 'btn btn-success' : 'btn btn-primary';
+  setTimeout(() => document.getElementById('stockModalShares').focus(), 100);
 };
 
-window.sellStock = async function(symbol, price) {
-  if (!token) { showLogin(); return; }
-  const shares = prompt(`How many shares of ${symbol} to sell at $${price.toFixed(2)}?`);
-  if (!shares || parseFloat(shares) <= 0) return;
-  const total = (parseFloat(shares) * price).toFixed(2);
-  if (!confirm(`Confirm: Sell ${shares} shares of ${symbol} at $${price.toFixed(2)} = $${total}\n\nProceeds will go to your ROI wallet after admin approval.`)) return;
-  try {
-    const r = await (await fetch('/api/user/stock/sell', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({symbol, shares: parseFloat(shares), price})
-    })).json();
-    if (r.error) return showToast(r.error, 'error');
-    showToast('Stock sell submitted! Ref: ' + r.reference, 'success');
-  } catch(e) { showToast('Failed to submit', 'error'); }
+window.closeStockModal = function() {
+  document.getElementById('stockModal').style.display = 'none';
+  _stockModalData = null;
 };
 
-window.showMarketTab('overview');
+window.updateStockTotal = function() {
+  if (!_stockModalData) return;
+  const shares = parseFloat(document.getElementById('stockModalShares').value) || 0;
+  const total = shares * _stockModalData.price;
+  document.getElementById('stockModalTotal').textContent = '$' + total.toFixed(2);
+};
+
+window.submitStockTrade = async function() {
+  if (!_stockModalData || !token) return;
+  const {type, symbol, price, name} = _stockModalData;
+  const shares = parseFloat(document.getElementById('stockModalShares').value);
+  if (!shares || shares <= 0) return showToast('Enter a valid number of shares', 'error');
+  if (type === 'sell') {
+    const held = userPositions[symbol] || 0;
+    if (shares > held) return showToast(`You only hold ${held.toFixed(2)} shares of ${symbol}`, 'error');
+  }
+  const total = shares * price;
+  window.closeStockModal();
+  try {
+    const r = await (await fetch('/api/user/stock/' + type, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({symbol, shares, price})
+    })).json();
+    if (r.error) return showToast(r.error, 'error');
+    showToast(`${type === 'buy' ? 'Buy' : 'Sell'} order submitted! ${symbol} x${shares} = $${total.toFixed(2)} — awaiting admin approval`, 'success');
+    // Refresh positions
+    await loadUserPositions();
+    // Refresh current tab
+    const activeBtn = document.querySelector('.btn-primary.btn-sm');
+    if (activeBtn) {
+      const t = activeBtn.textContent.trim().toLowerCase();
+      if (t.includes('buy')) window.showMarketTab('stocks');
+      else if (t.includes('trade')) window.showMarketTab('my-trades');
+      else if (t.includes('portfolio')) window.showMarketTab('portfolio');
+    }
+  } catch(e) { showToast('Failed to submit order', 'error'); }
+};
+
+// Close modal on background click
+document.getElementById('stockModal').addEventListener('click', function(e) {
+  if (e.target === this) window.closeStockModal();
+});
+
+// Initialize
+loadMarketData().then(() => window.showMarketTab('overview'));
+
+// Auto-refresh prices every 30 seconds
+setInterval(async () => {
+  await loadMarketData();
+  await loadUserPositions();
+}, 30000);
 </script>

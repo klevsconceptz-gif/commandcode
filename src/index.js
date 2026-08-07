@@ -269,7 +269,7 @@ app.get('/api/admin/system-info', adminMiddleware, async c => {
   const recentSignups = (await db.prepare("SELECT COUNT(*) as c FROM users WHERE created_at > datetime('now','-7 days')").first()).c;
   const openTickets = (await db.prepare("SELECT COUNT(*) as c FROM support_tickets WHERE status='open'").first()).c;
   const totalLogs = (await db.prepare('SELECT COUNT(*) as c FROM admin_logs').first()).c;
-  return c.json({users:{locked:usersLocked, recent_signups:recentSignups}, financial:{pending_deposits:0, pending_withdrawals:0}, system:{active_sessions:0, open_tickets:openTickets, total_logs:totalLogs}, server:{uptime:process.uptime?Math.floor(process.uptime()):0, memory_usage:{heapUsed:0}}});
+  return c.json({users:{locked:usersLocked, recent_signups:recentSignups}, financial:{pending_deposits:0, pending_withdrawals:0}, system:{active_sessions:0, open_tickets:openTickets, total_logs:totalLogs}, server:{uptime:0, memory_usage:{heapUsed:0}}});
 });
 
 app.get('/api/admin/users', adminMiddleware, async c => {
@@ -388,7 +388,23 @@ app.post('/api/admin/transaction/:id', adminMiddleware, async c => {
   // Auto-link purchase requests / stock trades
   if (tx.linked_type && tx.linked_id && status === 'approved') {
     if (tx.linked_type === 'purchase_request') await db.prepare('UPDATE purchase_requests SET status=? WHERE id=?').bind('deposit_approved', tx.linked_id).run();
-    if (tx.linked_type === 'stock_trade') await db.prepare('UPDATE stock_trades SET status=? WHERE id=?').bind('completed', tx.linked_id).run();
+    if (tx.linked_type === 'stock_trade') {
+      // Re-route through stock trade approval logic for proper position updates
+      const trade = await db.prepare('SELECT * FROM stock_trades WHERE id=?').bind(tx.linked_id).first();
+      if (trade && trade.type === 'buy') {
+        // Credit balance + deposit wallet (already done by deposit approval above)
+        // Just update stock_positions
+        const existing = await db.prepare('SELECT id, shares, avg_price FROM stock_positions WHERE user_id=? AND symbol=?').bind(trade.user_id, trade.symbol).first();
+        if (existing) {
+          const newShares = Number(existing.shares) + Number(trade.shares);
+          const newAvg = ((Number(existing.shares) * Number(existing.avg_price)) + (Number(trade.shares) * Number(trade.price))) / newShares;
+          await db.prepare('UPDATE stock_positions SET shares=?, avg_price=?, current_price=?, updated_at=? WHERE id=?').bind(newShares, newAvg, trade.price, now(), existing.id).run();
+        } else {
+          await db.prepare('INSERT INTO stock_positions (user_id,symbol,shares,avg_price,current_price) VALUES (?,?,?,?,?)').bind(trade.user_id, trade.symbol, trade.shares, trade.price, trade.price).run();
+        }
+      }
+      await db.prepare('UPDATE stock_trades SET status=?, updated_at=? WHERE id=?').bind('completed', now(), tx.linked_id).run();
+    }
   }
   return c.json({message:'Transaction '+status});
 });
@@ -588,16 +604,50 @@ app.post('/api/admin/stock-trade/:id/approve', adminMiddleware, async c => {
   const id = c.req.param('id');
   const trade = await db.prepare('SELECT * FROM stock_trades WHERE id=?').bind(id).first();
   if (!trade) return c.json({error:'Trade not found'}, 404);
-  if (trade.type === 'sell') {
+  if (trade.status === 'completed') return c.json({error:'Trade already completed'}, 400);
+
+  if (trade.type === 'buy') {
+    // Credit user balance + deposit wallet
+    await db.prepare('UPDATE users SET balance=balance+?, total_deposit=total_deposit+?, updated_at=? WHERE id=?').bind(trade.total, trade.total, now(), trade.user_id).run();
+    await db.prepare('UPDATE user_wallets SET deposit_balance=deposit_balance+? WHERE user_id=?').bind(trade.total, trade.user_id).run();
+    // Update stock_positions (upsert)
+    const existing = await db.prepare('SELECT id, shares, avg_price FROM stock_positions WHERE user_id=? AND symbol=?').bind(trade.user_id, trade.symbol).first();
+    if (existing) {
+      const newShares = Number(existing.shares) + Number(trade.shares);
+      const newAvg = ((Number(existing.shares) * Number(existing.avg_price)) + (Number(trade.shares) * Number(trade.price))) / newShares;
+      await db.prepare('UPDATE stock_positions SET shares=?, avg_price=?, current_price=?, updated_at=? WHERE id=?').bind(newShares, newAvg, trade.price, now(), existing.id).run();
+    } else {
+      await db.prepare('INSERT INTO stock_positions (user_id,symbol,shares,avg_price,current_price) VALUES (?,?,?,?,?)').bind(trade.user_id, trade.symbol, trade.shares, trade.price, trade.price).run();
+    }
+  } else if (trade.type === 'sell') {
+    // Credit ROI wallet + user balance + profit
     await db.prepare('UPDATE user_wallets SET roi_balance=roi_balance+? WHERE user_id=?').bind(trade.total, trade.user_id).run();
-    await db.prepare('UPDATE users SET total_profit=total_profit+? WHERE id=?').bind(trade.total, trade.user_id).run();
+    await db.prepare('UPDATE users SET balance=balance+?, total_profit=total_profit+?, updated_at=? WHERE id=?').bind(trade.total, trade.total, now(), trade.user_id).run();
+    // Deduct from stock_positions
+    const pos = await db.prepare('SELECT id, shares, avg_price FROM stock_positions WHERE user_id=? AND symbol=?').bind(trade.user_id, trade.symbol).first();
+    if (pos) {
+      const newShares = Number(pos.shares) - Number(trade.shares);
+      if (newShares <= 0) {
+        await db.prepare('DELETE FROM stock_positions WHERE id=?').bind(pos.id).run();
+      } else {
+        await db.prepare('UPDATE stock_positions SET shares=?, current_price=?, updated_at=? WHERE id=?').bind(newShares, trade.price, now(), pos.id).run();
+      }
+    }
   }
-  await db.prepare('UPDATE stock_trades SET status=? WHERE id=?').bind('completed', id).run();
+
+  await db.prepare('UPDATE stock_trades SET status=?, updated_at=? WHERE id=?').bind('completed', now(), id).run();
   return c.json({message:'Stock trade approved'});
 });
 
 app.post('/api/admin/stock-trade/:id/reject', adminMiddleware, async c => {
-  await c.env.DB.prepare('UPDATE stock_trades SET status=? WHERE id=?').bind('rejected', c.req.param('id')).run();
+  const db = c.env.DB;
+  const id = c.req.param('id');
+  await db.prepare('UPDATE stock_trades SET status=?, updated_at=? WHERE id=?').bind('rejected', now(), id).run();
+  // Also reject linked transaction if any
+  const trade = await db.prepare('SELECT * FROM stock_trades WHERE id=?').bind(id).first();
+  if (trade && trade.transaction_id) {
+    await db.prepare('UPDATE transactions SET status=?, updated_at=? WHERE id=?').bind('rejected', now(), trade.transaction_id).run();
+  }
   return c.json({message:'Stock trade rejected'});
 });
 
@@ -606,36 +656,79 @@ app.post('/api/user/stock/buy', authMiddleware, async c => {
   const {symbol, shares, price} = await c.req.json();
   const u = c.get('user');
   if (!symbol || !shares || !price) return c.json({error:'Symbol, shares, and price required'}, 400);
-  if (shares <= 0 || price <= 0) return c.json({error:'Shares and price must be positive'}, 400);
+  const nShares = Number(shares);
+  const nPrice = Number(price);
+  if (isNaN(nShares) || nShares <= 0) return c.json({error:'Shares must be positive'}, 400);
+  if (isNaN(nPrice) || nPrice <= 0) return c.json({error:'Price must be positive'}, 400);
   if (!/^[A-Z]{1,10}$/.test(symbol)) return c.json({error:'Invalid stock symbol'}, 400);
-  const total = Number(shares) * Number(price);
+  const total = nShares * nPrice;
   const ref = genRef();
-  const r = await c.env.DB.prepare('INSERT INTO stock_trades (user_id,symbol,type,shares,price,total,status) VALUES (?,?,?,?,?,?,?)').bind(u.id, symbol, 'buy', shares, price, total, 'pending').run();
-  const txR = await c.env.DB.prepare('INSERT INTO transactions (user_id,type,amount,status,payment_method,reference,description,linked_type,linked_id) VALUES (?,?,?,?,?,?,?,?,?)').bind(u.id, 'deposit', total, 'pending', 'wallet', ref, 'Stock buy: '+symbol, 'stock_trade', r.meta.last_row_id).run();
-  return c.json({tradeId:r.meta.last_row_id, txId:txR.meta.last_row_id, reference:ref, message:'Stock buy — await admin approval'});
+  const r = await c.env.DB.prepare('INSERT INTO stock_trades (user_id,symbol,type,shares,price,total,status) VALUES (?,?,?,?,?,?,?)').bind(u.id, symbol, 'buy', nShares, nPrice, total, 'pending').run();
+  const txR = await c.env.DB.prepare('INSERT INTO transactions (user_id,type,amount,status,payment_method,reference,description,linked_type,linked_id) VALUES (?,?,?,?,?,?,?,?,?)').bind(u.id, 'deposit', total, 'pending', 'wallet', ref, 'Stock buy: '+symbol+' x'+nShares, 'stock_trade', r.meta.last_row_id).run();
+  // Link transaction back to trade
+  await c.env.DB.prepare('UPDATE stock_trades SET transaction_id=? WHERE id=?').bind(txR.meta.last_row_id, r.meta.last_row_id).run();
+  return c.json({tradeId:r.meta.last_row_id, txId:txR.meta.last_row_id, reference:ref, total:total, message:'Stock buy submitted — await admin approval'});
 });
 
 app.post('/api/user/stock/sell', authMiddleware, async c => {
   const {symbol, shares, price} = await c.req.json();
   const u = c.get('user');
   if (!symbol || !shares || !price) return c.json({error:'Symbol, shares, and price required'}, 400);
-  if (shares <= 0 || price <= 0) return c.json({error:'Shares and price must be positive'}, 400);
+  const nShares = Number(shares);
+  const nPrice = Number(price);
+  if (isNaN(nShares) || nShares <= 0) return c.json({error:'Shares must be positive'}, 400);
+  if (isNaN(nPrice) || nPrice <= 0) return c.json({error:'Price must be positive'}, 400);
   if (!/^[A-Z]{1,10}$/.test(symbol)) return c.json({error:'Invalid stock symbol'}, 400);
-  const total = Number(shares) * Number(price);
+  // Validate user holds enough shares
+  const pos = await c.env.DB.prepare('SELECT shares FROM stock_positions WHERE user_id=? AND symbol=?').bind(u.id, symbol).first();
+  if (!pos || Number(pos.shares) < nShares) {
+    const held = pos ? Number(pos.shares) : 0;
+    return c.json({error:`Insufficient shares. You hold ${held} shares of ${symbol}`}, 400);
+  }
+  const total = nShares * nPrice;
   const ref = genRef();
-  const r = await c.env.DB.prepare('INSERT INTO stock_trades (user_id,symbol,type,shares,price,total,status) VALUES (?,?,?,?,?,?,?)').bind(u.id, symbol, 'sell', shares, price, total, 'pending').run();
-  const txR = await c.env.DB.prepare('INSERT INTO transactions (user_id,type,amount,status,payment_method,reference,description,linked_type,linked_id) VALUES (?,?,?,?,?,?,?,?,?)').bind(u.id, 'withdrawal', total, 'pending', 'wallet', ref, 'Stock sell: '+symbol, 'stock_trade', r.meta.last_row_id).run();
-  return c.json({tradeId:r.meta.last_row_id, txId:txR.meta.last_row_id, reference:ref, message:'Stock sell — await admin approval'});
+  const r = await c.env.DB.prepare('INSERT INTO stock_trades (user_id,symbol,type,shares,price,total,status) VALUES (?,?,?,?,?,?,?)').bind(u.id, symbol, 'sell', nShares, nPrice, total, 'pending').run();
+  const txR = await c.env.DB.prepare('INSERT INTO transactions (user_id,type,amount,status,payment_method,reference,description,linked_type,linked_id) VALUES (?,?,?,?,?,?,?,?,?)').bind(u.id, 'withdrawal', total, 'pending', 'wallet', ref, 'Stock sell: '+symbol+' x'+nShares, 'stock_trade', r.meta.last_row_id).run();
+  // Link transaction back to trade
+  await c.env.DB.prepare('UPDATE stock_trades SET transaction_id=? WHERE id=?').bind(txR.meta.last_row_id, r.meta.last_row_id).run();
+  return c.json({tradeId:r.meta.last_row_id, txId:txR.meta.last_row_id, reference:ref, total:total, message:'Stock sell submitted — await admin approval'});
 });
 
 app.get('/api/user/stock/positions', authMiddleware, async c => {
-  const positions = await c.env.DB.prepare('SELECT * FROM stock_positions WHERE user_id=?').bind(c.get('user').id).all();
+  const positions = await c.env.DB.prepare('SELECT * FROM stock_positions WHERE user_id=? ORDER BY symbol').bind(c.get('user').id).all();
   return c.json(positions.results);
 });
 
 app.get('/api/user/stock/trades', authMiddleware, async c => {
   const trades = await c.env.DB.prepare('SELECT * FROM stock_trades WHERE user_id=? ORDER BY created_at DESC').bind(c.get('user').id).all();
   return c.json(trades.results);
+});
+
+// Market data with simulated price changes
+app.get('/api/market/stocks', async c => {
+  const baseStocks = [
+    {symbol:'TSLA',name:'Tesla Inc.',price:248.50,change:3.2,sector:'EV'},
+    {symbol:'SPCE',name:'Virgin Galactic',price:12.80,change:-1.5,sector:'Space'},
+    {symbol:'BA',name:'Boeing Co.',price:178.30,change:0.8,sector:'Aero'},
+    {symbol:'LMT',name:'Lockheed Martin',price:475.20,change:1.1,sector:'Defense'},
+    {symbol:'RKLB',name:'Rocket Lab',price:8.45,change:5.3,sector:'Space'},
+    {symbol:'ASTR',name:'Astra Space',price:3.20,change:-2.1,sector:'Space'},
+    {symbol:'JOBY',name:'Joby Aviation',price:6.75,change:2.8,sector:'eVTOL'},
+    {symbol:'PCAR',name:'Paccar Inc.',price:102.40,change:0.5,sector:'EV'},
+    {symbol:'GM',name:'General Motors',price:45.60,change:1.2,sector:'Auto'},
+    {symbol:'F',name:'Ford Motor',price:14.30,change:-0.3,sector:'Auto'},
+    {symbol:'RIVN',name:'Rivian Auto.',price:18.90,change:4.1,sector:'EV'},
+    {symbol:'LCID',name:'Lucid Motors',price:5.40,change:-1.8,sector:'EV'},
+    {symbol:'NIO',name:'NIO Inc.',price:7.80,change:2.5,sector:'EV'},
+    {symbol:'MSTR',name:'MicroStrategy',price:1650.00,change:6.2,sector:'Crypto'}
+  ];
+  // Add small random fluctuation for realism
+  const seeded = Date.now() % 1000;
+  const result = baseStocks.map((s, i) => {
+    const fluctuation = Math.sin(seeded * (i+1) * 0.001) * 0.02;
+    return {...s, price: Math.round(s.price * (1 + fluctuation) * 100) / 100};
+  });
+  return c.json(result);
 });
 
 // ===================== STATIC ASSETS + SPA FALLBACK =====================
