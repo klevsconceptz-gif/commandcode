@@ -19,6 +19,7 @@
     <a href="#/" onclick="navTo('/')">Home</a>
     <a href="#/shop" onclick="navTo('/shop')">Shop</a>
     <a href="#/markets" onclick="navTo('/markets')">Markets</a>
+    <a href="#/heatmap" onclick="navTo('/heatmap')">🗺 Heatmap</a>
     <a href="#/faq" onclick="navTo('/faq')">FAQ</a>
     <span id="authBtn"></span>
   </div>
@@ -257,6 +258,7 @@ const pageMap = {
   '/dashboard': 'dashboard.html',
   '/admin': 'admin.html',
   '/markets': 'stock-charts.html',
+  '/heatmap': 'stock-charts.html',
   '/faq': 'home.html'
 };
 
@@ -305,6 +307,13 @@ async function loadPage(path) {
       }, 200);
     } else {
       window.scrollTo(0, 0);
+    }
+
+    // Auto-switch to heatmap tab if navigated via /heatmap
+    if (path === '/heatmap') {
+      setTimeout(() => {
+        if (typeof window.showMarketTab === 'function') window.showMarketTab('heatmap');
+      }, 300);
     }
 
     // Update active nav link

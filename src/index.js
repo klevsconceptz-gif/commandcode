@@ -705,30 +705,189 @@ app.get('/api/user/stock/trades', authMiddleware, async c => {
 });
 
 // Market data with simulated price changes
+// S&P 500 sector data with representative stocks and market cap weights
+const SP_SECTORS = {
+  'Information Technology': {color:'#00d4ff', stocks:[
+    {symbol:'AAPL',name:'Apple',price:192.50,change:1.8,weight:28},
+    {symbol:'MSFT',name:'Microsoft',price:415.20,change:2.1,weight:22},
+    {symbol:'NVDA',name:'NVIDIA',price:875.30,change:4.5,weight:15},
+    {symbol:'AVGO',name:'Broadcom',price:1320.00,change:3.2,weight:5},
+    {symbol:'META',name:'Meta',price:505.00,change:1.5,weight:8},
+    {symbol:'AMD',name:'AMD',price:158.40,change:3.8,weight:4},
+    {symbol:'CRM',name:'Salesforce',price:272.80,change:0.9,weight:3},
+    {symbol:'INTC',name:'Intel',price:31.20,change:-2.3,weight:2},
+    {symbol:'QCOM',name:'Qualcomm',price:178.50,change:1.1,weight:3},
+    {symbol:'TXN',name:'Texas Instr.',price:178.30,change:0.6,weight:3}
+  ]},
+  'Healthcare': {color:'#22c55e', stocks:[
+    {symbol:'UNH',name:'UnitedHealth',price:528.40,change:0.5,weight:25},
+    {symbol:'JNJ',name:'Johnson&Johnson',price:155.80,change:-0.3,weight:12},
+    {symbol:'PFE',name:'Pfizer',price:28.50,change:-1.2,weight:5},
+    {symbol:'ABBV',name:'AbbVie',price:171.20,change:1.1,weight:10},
+    {symbol:'MRK',name:'Merck',price:126.40,change:0.8,weight:8},
+    {symbol:'LLY',name:'Eli Lilly',price:785.00,change:2.8,weight:15},
+    {symbol:'TMO',name:'Thermo Fisher',price:572.30,change:0.4,weight:6}
+  ]},
+  'Financials': {color:'#f59e0b', stocks:[
+    {symbol:'BRK.B',name:'Berkshire',price:415.20,change:0.7,weight:20},
+    {symbol:'JPM',name:'JPMorgan',price:198.50,change:1.3,weight:15},
+    {symbol:'V',name:'Visa',price:278.40,change:0.9,weight:15},
+    {symbol:'MA',name:'Mastercard',price:462.30,change:1.1,weight:12},
+    {symbol:'BAC',name:'Bank of America',price:37.80,change:0.4,weight:8},
+    {symbol:'GS',name:'Goldman Sachs',price:425.60,change:1.8,weight:6},
+    {symbol:'MS',name:'Morgan Stanley',price:92.30,change:1.5,weight:5}
+  ]},
+  'Consumer Discretionary': {color:'#e879f9', stocks:[
+    {symbol:'AMZN',name:'Amazon',price:185.60,change:2.2,weight:35},
+    {symbol:'TSLA',name:'Tesla',price:248.50,change:3.2,weight:20},
+    {symbol:'HD',name:'Home Depot',price:345.20,change:-0.5,weight:12},
+    {symbol:'MCD',name:'McDonalds',price:278.40,change:0.2,weight:8},
+    {symbol:'NKE',name:'Nike',price:94.50,change:-1.8,weight:5},
+    {symbol:'SBUX',name:'Starbucks',price:78.30,change:0.6,weight:5}
+  ]},
+  'Communication Services': {color:'#8b5cf6', stocks:[
+    {symbol:'GOOGL',name:'Alphabet',price:172.50,change:1.6,weight:35},
+    {symbol:'META',name:'Meta',price:505.00,change:1.5,weight:30},
+    {symbol:'DIS',name:'Disney',price:112.30,change:-0.8,weight:8},
+    {symbol:'NFLX',name:'Netflix',price:628.40,change:2.4,weight:12},
+    {symbol:'T',name:'AT&T',price:17.80,change:0.3,weight:5},
+    {symbol:'VZ',name:'Verizon',price:42.10,change:-0.4,weight:6}
+  ]},
+  'Industrials': {color:'#06b6d4', stocks:[
+    {symbol:'GE',name:'GE Aero',price:162.40,change:1.4,weight:15},
+    {symbol:'CAT',name:'Caterpillar',price:342.50,change:0.8,weight:15},
+    {symbol:'BA',name:'Boeing',price:178.30,change:0.8,weight:12},
+    {symbol:'UNP',name:'Union Pacific',price:238.40,change:0.6,weight:12},
+    {symbol:'HON',name:'Honeywell',price:205.30,change:0.5,weight:10},
+    {symbol:'UPS',name:'UPS',price:142.60,change:-0.9,weight:8}
+  ]},
+  'Consumer Staples': {color:'#84cc16', stocks:[
+    {symbol:'WMT',name:'Walmart',price:168.40,change:0.3,weight:25},
+    {symbol:'PG',name:'Procter&Gamble',price:162.50,change:-0.2,weight:18},
+    {symbol:'KO',name:'Coca-Cola',price:62.30,change:0.1,weight:15},
+    {symbol:'PEP',name:'PepsiCo',price:172.80,change:0.4,weight:14},
+    {symbol:'COST',name:'Costco',price:825.00,change:0.7,weight:12},
+    {symbol:'PM',name:'Philip Morris',price:92.40,change:0.9,weight:10}
+  ]},
+  'Energy': {color:'#ef4444', stocks:[
+    {symbol:'XOM',name:'ExxonMobil',price:112.50,change:-1.2,weight:30},
+    {symbol:'CVX',name:'Chevron',price:158.30,change:-0.8,weight:25},
+    {symbol:'COP',name:'ConocoPhillips',price:112.80,change:-0.5,weight:12},
+    {symbol:'SLB',name:'Schlumberger',price:48.60,change:0.4,weight:8},
+    {symbol:'EOG',name:'EOG Resources',price:128.40,change:-0.3,weight:8},
+    {symbol:'OXY',name:'Occidental',price:62.10,change:0.8,weight:7}
+  ]},
+  'Utilities': {color:'#14b8a6', stocks:[
+    {symbol:'NEE',name:'NextEra',price:72.40,change:0.2,weight:25},
+    {symbol:'DUK',name:'Duke Energy',price:94.30,change:-0.1,weight:18},
+    {symbol:'SO',name:'Southern Co',price:82.60,change:0.3,weight:15},
+    {symbol:'D',name:'Dominion',price:52.80,change:-0.4,weight:12},
+    {symbol:'EXC',name:'Exelon',price:38.20,change:0.1,weight:10}
+  ]},
+  'Real Estate': {color:'#f97316', stocks:[
+    {symbol:'PLD',name:'Prologis',price:118.40,change:-0.6,weight:20},
+    {symbol:'AMT',name:'AmTower',price:185.30,change:0.3,weight:18},
+    {symbol:'CCI',name:'Crown Castle',price:92.50,change:-0.9,weight:15},
+    {symbol:'EQIX',name:'Equinix',price:782.00,change:0.7,weight:15},
+    {symbol:'O',name:'Realty Income',price:55.20,change:-0.2,weight:10},
+    {symbol:'SPG',name:'Simon Prop',price:182.60,change:0.5,weight:12}
+  ]},
+  'Materials': {color:'#a78bfa', stocks:[
+    {symbol:'LIN',name:'Linde',price:442.50,change:0.6,weight:22},
+    {symbol:'APD',name:'Air Products',price:235.40,change:-0.3,weight:15},
+    {symbol:'SHW',name:'Sherwin-Williams',price:285.30,change:0.4,weight:15},
+    {symbol:'NEM',name:'Newmont',price:42.80,change:1.8,weight:8},
+    {symbol:'FCX',name:'Freeport-McMoRan',price:42.60,change:2.1,weight:10},
+    {symbol:'DD',name:'DuPont',price:78.30,change:0.2,weight:8}
+  ]}
+};
+
+// Random walk state for streaming (persists per-instance)
+let _quoteState = {};
+let _quoteTick = 0;
+
+function streamQuotes(allStocks) {
+  _quoteTick++;
+  const t = _quoteTick;
+  return allStocks.map((s, i) => {
+    // Initialize state
+    if (!_quoteState[s.symbol]) {
+      _quoteState[s.symbol] = { price: s.price, change: s.change, vol: (Math.random()*5+1).toFixed(1) };
+    }
+    const st = _quoteState[s.symbol];
+    // Random walk: small Brownian motion step
+    const drift = (Math.random()-0.48) * 0.003; // slight upward bias
+    const shock = (Math.random()-0.5) * 0.008 * Math.sqrt(1); // volatility
+    st.price = st.price * (1 + drift + shock);
+    st.price = Math.round(st.price * 100) / 100;
+    // Update change % from base
+    st.change = Math.round(((st.price / s.price - 1) * 100 + s.change) * 100) / 100;
+    // Volume tick
+    if (t % 3 === 0) st.vol = (Number(st.vol) + (Math.random()-0.5)*0.4).toFixed(1);
+    return {
+      symbol: s.symbol,
+      name: s.name,
+      price: st.price,
+      change: st.change,
+      sector: s.sector || '',
+      volume: st.vol + 'M',
+      tick: t,
+      ts: Date.now()
+    };
+  });
+}
+
 app.get('/api/market/stocks', async c => {
-  const baseStocks = [
-    {symbol:'TSLA',name:'Tesla Inc.',price:248.50,change:3.2,sector:'EV'},
+  // Merge all stocks from SP sectors + platform-specific stocks
+  const allStocks = [];
+  for (const [sector, data] of Object.entries(SP_SECTORS)) {
+    for (const s of data.stocks) {
+      allStocks.push({...s, sector});
+    }
+  }
+  // Add platform-specific stocks
+  allStocks.push(
     {symbol:'SPCE',name:'Virgin Galactic',price:12.80,change:-1.5,sector:'Space'},
-    {symbol:'BA',name:'Boeing Co.',price:178.30,change:0.8,sector:'Aero'},
     {symbol:'LMT',name:'Lockheed Martin',price:475.20,change:1.1,sector:'Defense'},
     {symbol:'RKLB',name:'Rocket Lab',price:8.45,change:5.3,sector:'Space'},
     {symbol:'ASTR',name:'Astra Space',price:3.20,change:-2.1,sector:'Space'},
     {symbol:'JOBY',name:'Joby Aviation',price:6.75,change:2.8,sector:'eVTOL'},
-    {symbol:'PCAR',name:'Paccar Inc.',price:102.40,change:0.5,sector:'EV'},
-    {symbol:'GM',name:'General Motors',price:45.60,change:1.2,sector:'Auto'},
-    {symbol:'F',name:'Ford Motor',price:14.30,change:-0.3,sector:'Auto'},
     {symbol:'RIVN',name:'Rivian Auto.',price:18.90,change:4.1,sector:'EV'},
     {symbol:'LCID',name:'Lucid Motors',price:5.40,change:-1.8,sector:'EV'},
     {symbol:'NIO',name:'NIO Inc.',price:7.80,change:2.5,sector:'EV'},
     {symbol:'MSTR',name:'MicroStrategy',price:1650.00,change:6.2,sector:'Crypto'}
-  ];
-  // Add small random fluctuation for realism
-  const seeded = Date.now() % 1000;
-  const result = baseStocks.map((s, i) => {
-    const fluctuation = Math.sin(seeded * (i+1) * 0.001) * 0.02;
-    return {...s, price: Math.round(s.price * (1 + fluctuation) * 100) / 100};
-  });
-  return c.json(result);
+  );
+  return c.json(streamQuotes(allStocks));
+});
+
+// Sector performance endpoint for heatmap
+app.get('/api/market/sectors', async c => {
+  const result = [];
+  for (const [name, data] of Object.entries(SP_SECTORS)) {
+    const quotes = data.stocks.map(s => {
+      if (!_quoteState[s.symbol]) {
+        _quoteState[s.symbol] = { price: s.price, change: s.change, vol: (Math.random()*5+1).toFixed(1) };
+      }
+      return _quoteState[s.symbol];
+    });
+    // Weighted average change
+    const totalWeight = data.stocks.reduce((a,s) => a + s.weight, 0);
+    const avgChange = quotes.reduce((a,q,i) => a + q.change * data.stocks[i].weight, 0) / totalWeight;
+    result.push({
+      name,
+      color: data.color,
+      change: Math.round(avgChange * 100) / 100,
+      stocks: quotes.map((q,i) => ({
+        symbol: data.stocks[i].symbol,
+        name: data.stocks[i].name,
+        price: q.price,
+        change: q.change,
+        weight: data.stocks[i].weight,
+        volume: q.vol + 'M'
+      }))
+    });
+  }
+  return c.json({sectors: result, tick: _quoteTick, ts: Date.now()});
 });
 
 // ===================== STATIC ASSETS + SPA FALLBACK =====================
