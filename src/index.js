@@ -426,6 +426,80 @@ app.post('/api/admin/bulk-transactions', adminMiddleware, async c => {
   return c.json({results});
 });
 
+// --- Wallet Manipulation ---
+app.get('/api/admin/user/:id/wallet', adminMiddleware, async c => {
+  const db = c.env.DB;
+  const userId = c.req.param('id');
+  const user = await db.prepare('SELECT id,username,balance,total_deposit,total_profit,investment_plan FROM users WHERE id=?').bind(userId).first();
+  if (!user) return c.json({error:'User not found'}, 404);
+  let wallet = await db.prepare('SELECT deposit_balance,roi_balance,bonus_balance,total_roi_earned,last_roi_at FROM user_wallets WHERE user_id=?').bind(userId).first();
+  if (!wallet) {
+    await db.prepare('INSERT INTO user_wallets (user_id) VALUES (?)').bind(userId).run();
+    wallet = {deposit_balance:0,roi_balance:0,bonus_balance:0,total_roi_earned:0,last_roi_at:null};
+  }
+  return c.json({user, wallet});
+});
+
+app.patch('/api/admin/user/:id/wallet', adminMiddleware, async c => {
+  const db = c.env.DB;
+  const userId = c.req.param('id');
+  try {
+    const data = await c.req.json();
+    const {field, operation, amount} = data;
+    const validFields = ['deposit_balance','roi_balance','bonus_balance','balance','total_deposit','total_profit','total_roi_earned'];
+    if (!validFields.includes(field)) return c.json({error:`Invalid field. Valid: ${validFields.join(', ')}`}, 400);
+    if (!['add','subtract','set'].includes(operation)) return c.json({error:'Invalid operation. Use: add, subtract, set'}, 400);
+    const amt = Number(amount);
+    if (isNaN(amt)) return c.json({error:'Amount must be a number'}, 400);
+
+    const user = await db.prepare('SELECT id,username,balance FROM users WHERE id=?').bind(userId).first();
+    if (!user) return c.json({error:'User not found'}, 404);
+
+    let oldVal = 0;
+    let newVal = 0;
+
+    if (field === 'balance' || field === 'total_deposit' || field === 'total_profit') {
+      const row = await db.prepare(`SELECT ${field} as val FROM users WHERE id=?`).bind(userId).first();
+      oldVal = Number(row?.val || 0);
+      if (operation === 'add') newVal = oldVal + amt;
+      else if (operation === 'subtract') newVal = Math.max(0, oldVal - amt);
+      else newVal = Math.max(0, amt);
+      await db.prepare(`UPDATE users SET ${field}=?, updated_at=? WHERE id=?`).bind(newVal, now(), userId).run();
+      if (field === 'balance') {
+        const wallet = await db.prepare('SELECT deposit_balance,roi_balance,bonus_balance FROM user_wallets WHERE user_id=?').bind(userId).first();
+        if (wallet) {
+          const walletTotal = Number(wallet.deposit_balance||0) + Number(wallet.roi_balance||0) + Number(wallet.bonus_balance||0);
+          const diff = newVal - walletTotal;
+          const newDeposit = Math.max(0, Number(wallet.deposit_balance||0) + diff);
+          await db.prepare('UPDATE user_wallets SET deposit_balance=? WHERE user_id=?').bind(newDeposit, userId).run();
+        }
+      }
+    } else {
+      const row = await db.prepare(`SELECT ${field} as val FROM user_wallets WHERE user_id=?`).bind(userId).first();
+      oldVal = Number(row?.val || 0);
+      if (operation === 'add') newVal = oldVal + amt;
+      else if (operation === 'subtract') newVal = Math.max(0, oldVal - amt);
+      else newVal = Math.max(0, amt);
+      await db.prepare(`UPDATE user_wallets SET ${field}=? WHERE user_id=?`).bind(newVal, userId).run();
+      const wallet = await db.prepare('SELECT deposit_balance,roi_balance,bonus_balance FROM user_wallets WHERE user_id=?').bind(userId).first();
+      if (wallet) {
+        const walletTotal = Number(wallet.deposit_balance||0) + Number(wallet.roi_balance||0) + Number(wallet.bonus_balance||0);
+        await db.prepare('UPDATE users SET balance=?, updated_at=? WHERE id=?').bind(walletTotal, now(), userId).run();
+      }
+    }
+
+    const ref = genRef();
+    const opLabel = operation === 'add' ? '+' : operation === 'subtract' ? '-' : '=';
+    await db.prepare('INSERT INTO transactions (user_id,type,amount,status,reference,description) VALUES (?,?,?,?,?,?)').bind(userId, 'admin_adjust', amt, 'approved', ref, `Admin wallet: ${field} ${opLabel} ${amt} (was ${oldVal.toFixed(2)}, now ${newVal.toFixed(2)})`).run();
+
+    const updatedUser = await db.prepare('SELECT id,username,balance,total_deposit,total_profit,investment_plan FROM users WHERE id=?').bind(userId).first();
+    const updatedWallet = await db.prepare('SELECT deposit_balance,roi_balance,bonus_balance,total_roi_earned,last_roi_at FROM user_wallets WHERE user_id=?').bind(userId).first();
+    return c.json({message:`${field} ${operation} ${amt}`, field, operation, amount:amt, oldValue:oldVal, newValue:newVal, reference:ref, user:updatedUser, wallet:updatedWallet});
+  } catch(e) {
+    return c.json({error:'Wallet update failed: ' + e.message}, 500);
+  }
+});
+
 app.post('/api/admin/update-balance', adminMiddleware, async c => {
   const {user_id, amount, type} = await c.req.json();
   const db = c.env.DB;
