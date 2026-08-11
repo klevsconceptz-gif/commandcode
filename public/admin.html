@@ -11,6 +11,7 @@
 <button class="btn btn-outline btn-sm" onclick="window.showAdminSection('tickets')">🎫 Tickets</button>
 <button class="btn btn-outline btn-sm" onclick="window.showAdminSection('announcements')">📢 Announce</button>
 <button class="btn btn-outline btn-sm" onclick="window.showAdminSection('stock-trades')">📊 Stocks</button>
+<button class="btn btn-outline btn-sm" onclick="window.showAdminSection('logs')">📜 Logs</button>
 <button class="btn btn-outline btn-sm" onclick="window.showAdminSection('settings')">⚙️ Settings</button>
 </div>
 
@@ -19,259 +20,363 @@
 
 <script>
 window.showAdminSection = function(section) {
-  const sections = ['transactions','users','payments','roi','orders','tickets','announcements','stock-trades','settings'];
-  const btns = document.querySelectorAll('.btn-sm');
+  const sections = ['transactions','users','payments','roi','orders','tickets','announcements','stock-trades','logs','settings'];
+  const btns = document.querySelectorAll('.tab-strip .btn-sm');
   btns.forEach((b,i) => { if(i<sections.length) b.className = sections[i]===section ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm'; });
-  
   const el = document.getElementById('adminContent');
-  if (section === 'users') window.loadAdminUsers();
-  else if (section === 'transactions') window.loadAdminTransactions();
-  else if (section === 'payments') window.loadAdminPayments();
-  else if (section === 'announcements') window.loadAdminAnnouncements();
-  else if (section === 'orders') window.loadAdminOrders();
-  else if (section === 'tickets') window.loadAdminTickets();
-  else if (section === 'roi') window.loadAdminROI();
-  else if (section === 'settings') window.loadAdminSettings();
-  else if (section === 'stock-trades') window.loadAdminStockTrades();
+  if (section==='users') window.loadAdminUsers();
+  else if (section==='transactions') window.loadAdminTransactions();
+  else if (section==='payments') window.loadAdminPayments();
+  else if (section==='announcements') window.loadAdminAnnouncements();
+  else if (section==='orders') window.loadAdminOrders();
+  else if (section==='tickets') window.loadAdminTickets();
+  else if (section==='roi') window.loadAdminROI();
+  else if (section==='settings') window.loadAdminSettings();
+  else if (section==='stock-trades') window.loadAdminStockTrades();
+  else if (section==='logs') window.loadAdminLogs();
 };
 
+// === STATS ===
 window.loadAdminStats = async function() {
   try {
     const s = await (await fetch('/api/admin/stats')).json();
     const el = document.getElementById('adminStats');
     if (!el) return;
     el.innerHTML = [
-      {l:'Users',v:s.totalUsers,c:'#00d4ff',i:'👥'},
-      {l:'Active',v:s.activeUsers,c:'#22c55e',i:'✅'},
+      {l:'Users',v:s.totalUsers,c:'#00d4ff',i:'👥'},{l:'Active',v:s.activeUsers,c:'#22c55e',i:'✅'},
       {l:'Deposits',v:'$'+Number(s.totalDeposits).toFixed(0),c:'#7b2ff7',i:'💰'},
       {l:'Withdrawals',v:'$'+Number(s.totalWithdrawals).toFixed(0),c:'#f59e0b',i:'💸'},
-      {l:'Pending Dep',v:s.pendingDeposits,c:'#f59e0b',i:'⏳'},
-      {l:'Pending Wd',v:s.pendingWithdrawals,c:'#ff3232',i:'⏳'},
+      {l:'Pending Dep',v:s.pendingDeposits,c:'#f59e0b',i:'⏳'},{l:'Pending Wd',v:s.pendingWithdrawals,c:'#ff3232',i:'⏳'},
       {l:'Total Balance',v:'$'+Number(s.totalBalance).toFixed(0),c:'#22c55e',i:'💎'}
     ].map(x=>`<div class="glass" style="padding:0.8rem;text-align:center"><p style="color:#a0a0c0;font-size:0.7rem;margin:0">${x.i} ${x.l}</p><p style="font-size:1.1rem;font-weight:700;color:${x.c};margin:0.2rem 0 0">${x.v}</p></div>`).join('');
   } catch(e) {}
 };
 
-// === Users ===
+// === USERS ===
 window.loadAdminUsers = async function() {
   const el = document.getElementById('adminContent');
   el.innerHTML = '<h3 style="color:#00d4ff">👥 Users</h3><p style="color:#a0a0c0">Loading...</p>';
   try {
     const users = await (await fetch('/api/admin/users')).json();
-    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">👥 All Users</h3>';
-    html += '<table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.4rem">ID</th><th style="text-align:left;padding:0.4rem">Username</th><th style="text-align:left;padding:0.4rem">Email</th><th style="text-align:left;padding:0.4rem">Balance</th><th style="text-align:left;padding:0.4rem">Deposit</th><th style="text-align:left;padding:0.4rem">Stage</th><th style="text-align:left;padding:0.4rem">Active</th><th style="text-align:left;padding:0.4rem">Actions</th></tr></thead><tbody>';
+    let html = `<h3 style="color:#00d4ff;margin-bottom:1rem">👥 All Users</h3>
+    <button class="btn btn-primary btn-sm" style="margin-bottom:1rem" onclick="window.showCreateUserForm()">➕ Create User</button>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="color:#a0a0c0">
+      <th style="text-align:left;padding:0.4rem">ID</th><th style="text-align:left;padding:0.4rem">Username</th><th style="text-align:left;padding:0.4rem">Email</th>
+      <th style="text-align:left;padding:0.4rem">Balance</th><th style="text-align:left;padding:0.4rem">Deposit</th><th style="text-align:left;padding:0.4rem">Stage</th>
+      <th style="text-align:left;padding:0.4rem">Active</th><th style="text-align:left;padding:0.4rem">Admin</th><th style="text-align:left;padding:0.4rem">Actions</th>
+    </tr></thead><tbody>`;
     users.forEach(u => {
       html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)">
-        <td style="padding:0.4rem">${u.id}</td>
-        <td style="padding:0.4rem;font-weight:600">${u.username}</td>
+        <td style="padding:0.4rem">${u.id}</td><td style="padding:0.4rem;font-weight:600">${u.username}</td>
         <td style="padding:0.4rem;color:#a0a0c0">${u.email||''}</td>
-        <td style="padding:0.4rem">$${(u.balance||0).toFixed(2)}</td>
-        <td style="padding:0.4rem">$${(u.total_deposit||0).toFixed(2)}</td>
+        <td style="padding:0.4rem">$${(u.balance||0).toFixed(2)}</td><td style="padding:0.4rem">$${(u.total_deposit||0).toFixed(2)}</td>
         <td style="padding:0.4rem"><span class="badge badge-pending">${u.investment_plan}</span></td>
         <td style="padding:0.4rem;color:${u.is_active?'#22c55e':'#ff3232'}">${u.is_active?'Yes':'No'}</td>
+        <td style="padding:0.4rem;color:${u.is_admin?'#f59e0b':'#555'}">${u.is_admin?'👑':''}</td>
         <td style="padding:0.4rem">
           <button class="btn btn-primary btn-sm" onclick="window.openWalletModal(${u.id},'${u.username}')">💰</button>
-          <button class="btn btn-outline btn-sm" onclick="window.toggleUser(${u.id})">${u.is_active?'Disable':'Enable'}</button>
-          <button class="btn btn-outline btn-sm" onclick="window.unlockUser(${u.id})">Unlock</button>
+          <button class="btn btn-outline btn-sm" onclick="window.editUser(${u.id})">✏️</button>
+          <button class="btn btn-outline btn-sm" onclick="window.sendUserMessage(${u.id},'${u.username}')">📨</button>
+          <button class="btn btn-outline btn-sm" onclick="window.toggleUser(${u.id})">${u.is_active?'🚫':'✅'}</button>
+          <button class="btn btn-outline btn-sm" onclick="window.unlockUser(${u.id})">🔓</button>
+          <button class="btn btn-danger btn-sm" onclick="window.deleteUser(${u.id},'${u.username}')">🗑</button>
         </td></tr>`;
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     el.innerHTML = html;
   } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">👥 Users</h3><p style="color:#ff3232">Error</p>'; }
 };
 
+window.showCreateUserForm = function() {
+  const el = document.getElementById('adminContent');
+  el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1rem">➕ Create New User</h3>
+  <div style="max-width:500px">
+    <div class="form-group"><label>Username</label><input id="cuUser" placeholder="username"></div>
+    <div class="form-group"><label>Email</label><input id="cuEmail" type="email" placeholder="user@email.com"></div>
+    <div class="form-group"><label>Phone</label><input id="cuPhone" placeholder="+15551234567"></div>
+    <div class="form-group"><label>Full Name</label><input id="cuName" placeholder="Full Name"></div>
+    <div class="form-group"><label>Password</label><input id="cuPass" type="password" placeholder="Min 8 chars"></div>
+    <button class="btn btn-primary" onclick="window.doCreateUser()">Create User</button>
+    <button class="btn btn-outline" onclick="window.loadAdminUsers()" style="margin-left:0.5rem">Cancel</button>
+    <div id="cuResult" style="margin-top:1rem"></div>
+  </div>`;
+};
+window.doCreateUser = async function() {
+  const data = {username:document.getElementById('cuUser').value,email:document.getElementById('cuEmail').value,phone:document.getElementById('cuPhone').value,full_name:document.getElementById('cuName').value,password:document.getElementById('cuPass').value};
+  if (!data.username||!data.email||!data.phone||!data.full_name||!data.password) return showToast('All fields required','error');
+  try {
+    const r = await (await fetch('/api/admin/create-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})).json();
+    if (r.error) return document.getElementById('cuResult').innerHTML='<p style="color:#ff3232">'+r.error+'</p>';
+    showToast('User created!','success'); window.loadAdminUsers();
+  } catch(e) { showToast('Error','error'); }
+};
+window.editUser = async function(id) {
+  try {
+    const u = await (await fetch('/api/admin/user/'+id)).json();
+    if (u.error) return showToast(u.error,'error');
+    const el = document.getElementById('adminContent');
+    el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1rem">✏️ Edit User: ${u.username}</h3>
+    <div style="max-width:500px">
+      <div class="form-group"><label>Full Name</label><input id="euName" value="${u.full_name||''}"></div>
+      <div class="form-group"><label>Email</label><input id="euEmail" type="email" value="${u.email||''}"></div>
+      <div class="form-group"><label>Phone</label><input id="euPhone" value="${u.phone||''}"></div>
+      <div class="form-group"><label>Investment Plan</label>
+        <select id="euStage"><option ${u.investment_plan==='Stage 1'?'selected':''}>Stage 1</option><option ${u.investment_plan==='Stage 2'?'selected':''}>Stage 2</option><option ${u.investment_plan==='Stage 3'?'selected':''}>Stage 3</option><option ${u.investment_plan==='Stage 4'?'selected':''}>Stage 4</option></select>
+      </div>
+      <div class="form-group"><label>Is Admin</label>
+        <select id="euAdmin"><option value="0" ${!u.is_admin?'selected':''}>No</option><option value="1" ${u.is_admin?'selected':''}>Yes</option></select>
+      </div>
+      <button class="btn btn-primary" onclick="window.doEditUser(${id})">Save Changes</button>
+      <button class="btn btn-outline" onclick="window.loadAdminUsers()" style="margin-left:0.5rem">Cancel</button>
+      <div id="euResult" style="margin-top:1rem"></div>
+    </div>`;
+  } catch(e) { showToast('Error loading user','error'); }
+};
+window.doEditUser = async function(id) {
+  const data = {full_name:document.getElementById('euName').value,email:document.getElementById('euEmail').value,phone:document.getElementById('euPhone').value,investment_plan:document.getElementById('euStage').value,is_admin:parseInt(document.getElementById('euAdmin').value)};
+  try {
+    const r = await (await fetch('/api/admin/user/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})).json();
+    if (r.error) return document.getElementById('euResult').innerHTML='<p style="color:#ff3232">'+r.error+'</p>';
+    showToast('User updated','success'); window.loadAdminUsers();
+  } catch(e) { showToast('Error','error'); }
+};
+window.deleteUser = async function(id, username) {
+  if (!confirm('Delete user "'+username+'" (ID:'+id+') and ALL related data?')) return;
+  try {
+    const r = await (await fetch('/api/admin/user/'+id,{method:'DELETE'})).json();
+    if (r.error) return showToast(r.error,'error');
+    showToast('User deleted','success'); window.loadAdminUsers();
+  } catch(e) { showToast('Error','error'); }
+};
+window.sendUserMessage = function(userId, username) {
+  const el = document.getElementById('adminContent');
+  el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1rem">📨 Send Message to ${username}</h3>
+  <div style="max-width:500px">
+    <div class="form-group"><label>Title</label><input id="smTitle" placeholder="e.g. Wallet Update"></div>
+    <div class="form-group"><label>Message</label><textarea id="smBody" rows="4" placeholder="Message body..."></textarea></div>
+    <div class="form-group"><label>Type</label>
+      <select id="smType"><option value="info">Info</option><option value="wallet">Wallet</option><option value="deposit">Deposit</option><option value="withdrawal">Withdrawal</option><option value="stock">Stock</option><option value="order">Order</option></select>
+    </div>
+    <button class="btn btn-primary" onclick="window.doSendMessage(${userId})">Send</button>
+    <button class="btn btn-outline" onclick="window.loadAdminUsers()" style="margin-left:0.5rem">Cancel</button>
+  </div>`;
+};
+window.doSendMessage = async function(userId) {
+  const data = {title:document.getElementById('smTitle').value,body:document.getElementById('smBody').value,type:document.getElementById('smType').value};
+  if (!data.title||!data.body) return showToast('Title and body required','error');
+  try {
+    const r = await (await fetch('/api/admin/user/'+userId+'/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})).json();
+    if (r.error) return showToast(r.error,'error');
+    showToast('Message sent!','success'); window.loadAdminUsers();
+  } catch(e) { showToast('Error','error'); }
+};
 window.toggleUser = async function(id) { await fetch('/api/admin/toggle-user/'+id,{method:'POST'}); showToast('User toggled'); window.loadAdminUsers(); };
 window.unlockUser = async function(id) { await fetch('/api/admin/user/'+id+'/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}); showToast('User unlocked','success'); };
 
-// === Wallet Manipulation Modal ===
+// === WALLET MODAL ===
 let _walletData = null;
 window.openWalletModal = async function(userId, username) {
   _walletData = {userId, username};
-  const modal = document.getElementById('walletModal');
-  modal.style.display = 'flex';
+  document.getElementById('walletModal').style.display = 'flex';
   document.getElementById('walletModalTitle').textContent = `💰 ${username} — Wallet`;
   document.getElementById('walletModalBody').innerHTML = '<p style="color:#a0a0c0;text-align:center;padding:2rem">Loading wallet...</p>';
   try {
     const r = await (await fetch('/api/admin/user/'+userId+'/wallet')).json();
     if (r.error) { document.getElementById('walletModalBody').innerHTML = '<p style="color:#ff3232">'+r.error+'</p>'; return; }
-    _walletData.wallet = r.wallet;
-    _walletData.user = r.user;
+    _walletData.wallet = r.wallet; _walletData.user = r.user;
     renderWalletBody();
-  } catch(e) { document.getElementById('walletModalBody').innerHTML = '<p style="color:#ff3232">Error loading wallet</p>'; }
+  } catch(e) { document.getElementById('walletModalBody').innerHTML = '<p style="color:#ff3232">Error</p>'; }
 };
-
 function renderWalletBody() {
   if (!_walletData) return;
   const {wallet, user} = _walletData;
   const fields = [
-    {key:'balance', label:'Total Balance', value:user.balance, color:'#00d4ff', icon:'💎'},
-    {key:'deposit_balance', label:'Deposit Balance', value:wallet.deposit_balance, color:'#22c55e', icon:'💰'},
-    {key:'roi_balance', label:'ROI Balance', value:wallet.roi_balance, color:'#f59e0b', icon:'📈'},
-    {key:'bonus_balance', label:'Bonus Balance', value:wallet.bonus_balance, color:'#e879f9', icon:'🎁'},
-    {key:'total_deposit', label:'Total Deposited', value:user.total_deposit, color:'#06b6d4', icon:'📥'},
-    {key:'total_profit', label:'Total Profit', value:user.total_profit, color:'#84cc16', icon:'💹'},
-    {key:'total_roi_earned', label:'Total ROI Earned', value:wallet.total_roi_earned, color:'#14b8a6', icon:'🔄'}
+    {key:'balance',label:'Total Balance',value:user.balance,color:'#00d4ff',icon:'💎'},
+    {key:'deposit_balance',label:'Deposit Balance',value:wallet.deposit_balance,color:'#22c55e',icon:'💰'},
+    {key:'roi_balance',label:'ROI Balance',value:wallet.roi_balance,color:'#f59e0b',icon:'📈'},
+    {key:'bonus_balance',label:'Bonus Balance',value:wallet.bonus_balance,color:'#e879f9',icon:'🎁'},
+    {key:'total_deposit',label:'Total Deposited',value:user.total_deposit,color:'#06b6d4',icon:'📥'},
+    {key:'total_profit',label:'Total Profit',value:user.total_profit,color:'#84cc16',icon:'💹'},
+    {key:'total_roi_earned',label:'Total ROI Earned',value:wallet.total_roi_earned,color:'#14b8a6',icon:'🔄'}
   ];
   let html = `<div style="margin-bottom:1.5rem;padding:0.8rem;background:rgba(0,212,255,0.08);border-radius:10px;text-align:center">
-    <p style="color:#a0a0c0;font-size:0.75rem">Stage</p>
-    <p style="font-size:1.1rem;font-weight:700;color:#00d4ff">${user.investment_plan}</p>
-  </div>`;
+    <p style="color:#a0a0c0;font-size:0.75rem">Stage</p><p style="font-size:1.1rem;font-weight:700;color:#00d4ff">${user.investment_plan}</p></div>`;
   fields.forEach(f => {
     html += `<div style="margin-bottom:1rem;padding:1rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem">
         <span style="font-size:0.85rem;color:#a0a0c0">${f.icon} ${f.label}</span>
         <span style="font-size:1.2rem;font-weight:700;color:${f.color}">$${Number(f.value||0).toFixed(2)}</span>
       </div>
-      <div style="display:flex;gap:0.4rem;align-items:center">
+      <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
         <select id="wop_${f.key}" style="padding:0.4rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:0.8rem;min-width:80px">
-          <option value="add">+ Add</option>
-          <option value="subtract">− Subtract</option>
-          <option value="set">= Set</option>
+          <option value="add">+ Add</option><option value="subtract">− Subtract</option><option value="set">= Set</option>
         </select>
-        <input id="wamt_${f.key}" type="number" step="0.01" min="0" placeholder="0.00" style="flex:1;padding:0.4rem 0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:0.85rem">
+        <input id="wamt_${f.key}" type="number" step="0.01" min="0" placeholder="0.00" style="flex:1;min-width:80px;padding:0.4rem 0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:0.85rem">
+        <input id="wdesc_${f.key}" type="text" placeholder="Description..." style="flex:1;min-width:100px;padding:0.4rem 0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:0.85rem">
         <button class="btn btn-primary btn-sm" onclick="window.applyWalletChange('${f.key}')">Apply</button>
       </div>
     </div>`;
   });
   document.getElementById('walletModalBody').innerHTML = html;
 }
-
 window.applyWalletChange = async function(field) {
   if (!_walletData) return;
   const operation = document.getElementById('wop_'+field).value;
   const amount = parseFloat(document.getElementById('wamt_'+field).value);
-  if (isNaN(amount) || amount < 0) return showToast('Enter a valid positive amount', 'error');
-  const opLabel = operation === 'add' ? 'add' : operation === 'subtract' ? 'subtract' : 'set to';
+  const description = document.getElementById('wdesc_'+field).value;
+  if (isNaN(amount) || amount < 0) return showToast('Enter a valid positive amount','error');
+  const opLabel = operation==='add'?'+':operation==='subtract'?'−':'=';
   if (!confirm(`Confirm: ${field} ${opLabel} $${amount.toFixed(2)} for ${_walletData.username}?`)) return;
   try {
     const r = await (await fetch('/api/admin/user/'+_walletData.userId+'/wallet', {
-      method: 'PATCH', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({field, operation, amount})
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({field,operation,amount,description})
     })).json();
-    if (r.error) return showToast(r.error, 'error');
-    showToast(`${field} ${operation} $${amount.toFixed(2)} → now $${r.newValue.toFixed(2)}`, 'success');
-    _walletData.wallet = r.wallet;
-    _walletData.user = r.user;
+    if (r.error) return showToast(r.error,'error');
+    showToast(`${field} ${operation} $${amount.toFixed(2)} — Message sent to user`,'success');
+    _walletData.wallet = r.wallet; _walletData.user = r.user;
     renderWalletBody();
-  } catch(e) { showToast('Error updating wallet', 'error'); }
+  } catch(e) { showToast('Error','error'); }
 };
+window.closeWalletModal = function() { document.getElementById('walletModal').style.display='none'; window.loadAdminUsers(); };
 
-window.closeWalletModal = function() {
-  document.getElementById('walletModal').style.display = 'none';
-  _walletData = null;
-  window.loadAdminUsers();
-};
-
-// === Transactions ===
+// === TRANSACTIONS ===
 window.loadAdminTransactions = async function() {
   const el = document.getElementById('adminContent');
   el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#a0a0c0">Loading...</p>';
   try {
     const txs = await (await fetch('/api/admin/transactions')).json();
-    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📋 Transactions</h3>';
-    if (!txs.length) { html += '<p style="color:#a0a0c0">No transactions yet.</p>'; }
+    let html = `<h3 style="color:#00d4ff;margin-bottom:1rem">📋 Transactions</h3>
+    <div style="margin-bottom:1rem;display:flex;gap:0.5rem;flex-wrap:wrap">
+      <button class="btn btn-success btn-sm" onclick="window.bulkApprove()">✅ Approve All Pending</button>
+      <button class="btn btn-danger btn-sm" onclick="window.bulkReject()">❌ Reject All Pending</button>
+    </div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="color:#a0a0c0">
+      <th style="text-align:left;padding:0.4rem">ID</th><th style="text-align:left;padding:0.4rem">User</th><th style="text-align:left;padding:0.4rem">Type</th>
+      <th style="text-align:right;padding:0.4rem">Amount</th><th style="text-align:left;padding:0.4rem">Method</th>
+      <th style="text-align:left;padding:0.4rem">Status</th><th style="text-align:left;padding:0.4rem">Ref</th>
+      <th style="text-align:left;padding:0.4rem">Date</th><th style="text-align:center;padding:0.4rem">Action</th>
+    </tr></thead><tbody>`;
     txs.forEach(t => {
-      const bc = t.status==='approved'?'badge-approved':t.status==='rejected'?'badge-rejected':'badge-pending';
-      html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:0.7rem;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;gap:0.5rem">
-        <div style="flex:1;min-width:200px">
-          <strong style="color:#fff">${t.username||'N/A'}</strong> — 
-          <span style="color:${t.type==='deposit'?'#22c55e':'#f59e0b'}">${t.type}</span> 
-          <strong>$${Number(t.amount).toFixed(2)}</strong>
-          <span class="badge ${bc}" style="margin-left:0.5rem">${t.status}</span>
-          <span style="color:#a0a0c0;font-size:0.8rem;margin-left:0.5rem">${t.payment_method||''}</span>
-          <br><span style="color:#555;font-size:0.75rem">${new Date(t.created_at).toLocaleString()}</span>
-        </div>
-        ${t.status==='pending'?`<div style="display:flex;gap:0.3rem">
-          <button class="btn btn-success btn-sm" onclick="window.approveTx(${t.id})">✓ Approve</button>
-          <button class="btn btn-danger btn-sm" onclick="window.rejectTx(${t.id})">✗ Reject</button>
-        </div>`:''}
-      </div>`;
+      const c = t.status==='approved'?'#22c55e':t.status==='rejected'?'#ff3232':'#f59e0b';
+      html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)">
+        <td style="padding:0.4rem">${t.id}</td><td style="padding:0.4rem;font-weight:600">${t.username||''}</td>
+        <td style="padding:0.4rem;color:${t.type==='deposit'?'#22c55e':'#f59e0b'}">${t.type}</td>
+        <td style="padding:0.4rem;text-align:right">$${Number(t.amount).toFixed(2)}</td>
+        <td style="padding:0.4rem;color:#a0a0c0">${t.payment_method||'-'}</td>
+        <td style="padding:0.4rem;color:${c}">${t.status}</td>
+        <td style="padding:0.4rem;font-size:0.75rem">${t.reference||''}</td>
+        <td style="padding:0.4rem;color:#555;font-size:0.75rem">${t.created_at?new Date(t.created_at).toLocaleDateString():''}</td>
+        <td style="padding:0.4rem;text-align:center">${t.status==='pending'?`<button class="btn btn-success btn-sm" onclick="window.approveTx(${t.id})">✓</button> <button class="btn btn-danger btn-sm" onclick="window.rejectTx(${t.id})">✗</button>`:'—'}</td>
+      </tr>`;
     });
+    html += '</tbody></table></div>';
     el.innerHTML = html;
   } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#ff3232">Error</p>'; }
 };
-
 window.approveTx = async function(id) { await fetch('/api/admin/transaction/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'approved'})}); showToast('Approved','success'); window.loadAdminTransactions(); window.loadAdminStats(); };
 window.rejectTx = async function(id) { await fetch('/api/admin/transaction/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'rejected'})}); showToast('Rejected','error'); window.loadAdminTransactions(); window.loadAdminStats(); };
+window.bulkApprove = async function() { if(!confirm('Approve ALL pending transactions?')) return; const r=await(await fetch('/api/admin/bulk-approve',{method:'POST'})).json(); showToast(r.message,'success'); window.loadAdminTransactions(); window.loadAdminStats(); };
+window.bulkReject = async function() { if(!confirm('Reject ALL pending transactions?')) return; const r=await(await fetch('/api/admin/bulk-reject',{method:'POST'})).json(); showToast(r.message,'error'); window.loadAdminTransactions(); window.loadAdminStats(); };
 
-// === Payment Methods ===
+// === PAYMENTS ===
 window.loadAdminPayments = async function() {
   const el = document.getElementById('adminContent');
-  el.innerHTML = '<h3 style="color:#00d4ff">💳 Payment Methods</h3><p style="color:#a0a0c0">Loading...</p>';
   try {
     const methods = await (await fetch('/api/admin/payment-methods')).json();
     let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">💳 Payment Methods</h3>';
     methods.forEach(m => {
-      const details = m.details || [];
-      html += `<div class="glass" style="padding:1rem;margin-bottom:0.8rem">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
-          <div><strong style="color:#fff">${m.display_name}</strong> <span style="color:#a0a0c0">(${m.method})</span></div>
-          <div>
-            <span class="badge ${m.is_active?'badge-approved':'badge-rejected'}">${m.is_active?'Active':'Inactive'}</span>
-            <button class="btn btn-outline btn-sm" style="margin-left:0.3rem" onclick="window.togglePayment('${m.method}',${m.is_active?0:1})">${m.is_active?'Disable':'Enable'}</button>
-          </div>
+      html += `<div class="glass" style="padding:1rem;margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem">
+          <div><strong style="color:#fff">${m.display_name}</strong> <span style="color:#555;font-size:0.8rem">(${m.method})</span></div>
+          <div><button class="btn btn-outline btn-sm" onclick="window.togglePayment('${m.method}',${m.is_active?0:1})">${m.is_active?'🚫 Disable':'✅ Enable'}</button></div>
         </div>
-        ${details.length ? '<div style="font-size:0.85rem;color:#a0a0c0">' + details.map(d=>`<span style="margin-right:1rem">${d.label}: <strong style="color:#fff">${d.value}</strong></span>`).join('') + '</div>' : ''}
+        <div style="color:#a0a0c0;font-size:0.85rem">
+          <strong>Details:</strong>
+          <pre style="background:rgba(0,0,0,0.3);padding:0.5rem;border-radius:8px;margin-top:0.3rem;font-size:0.8rem;color:#e0e0e0;white-space:pre-wrap">${JSON.stringify(m.details||[],null,2)}</pre>
+        </div>
+        <div style="margin-top:0.8rem">
+          <button class="btn btn-outline btn-sm" onclick="window.editPaymentDetails('${m.method}')">✏️ Edit Details</button>
+        </div>
       </div>`;
     });
     el.innerHTML = html;
   } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">💳 Payments</h3><p style="color:#ff3232">Error</p>'; }
 };
-
 window.togglePayment = async function(method, isActive) {
   await fetch('/api/admin/payment-methods/'+method,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_active:isActive})});
   showToast('Payment method updated'); window.loadAdminPayments();
 };
+window.editPaymentDetails = async function(method) {
+  const methods = await (await fetch('/api/admin/payment-methods')).json();
+  const m = methods.find(x=>x.method===method);
+  if (!m) return;
+  const el = document.getElementById('adminContent');
+  el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1rem">✏️ Edit Payment Details: ${m.display_name}</h3>
+  <p style="color:#a0a0c0;font-size:0.85rem;margin-bottom:1rem">Edit the JSON details array. Each item has: label, value, copyable (true/false)</p>
+  <div class="form-group"><textarea id="epdJson" rows="10" style="width:100%;font-family:monospace;font-size:0.85rem">${JSON.stringify(m.details||[],null,2)}</textarea></div>
+  <button class="btn btn-primary" onclick="window.savePaymentDetails('${method}')">Save</button>
+  <button class="btn btn-outline" onclick="window.loadAdminPayments()" style="margin-left:0.5rem">Cancel</button>`;
+};
+window.savePaymentDetails = async function(method) {
+  try {
+    const details = JSON.parse(document.getElementById('epdJson').value);
+    await fetch('/api/admin/payment-methods/'+method,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({details})});
+    showToast('Payment details saved','success'); window.loadAdminPayments();
+  } catch(e) { showToast('Invalid JSON','error'); }
+};
 
-// === Announcements ===
+// === ANNOUNCEMENTS ===
 window.loadAdminAnnouncements = async function() {
   const el = document.getElementById('adminContent');
   try {
     const anns = await (await fetch('/api/admin/announcements')).json();
-    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📢 Announcements</h3>';
-    html += '<div class="glass" style="padding:1rem;margin-bottom:1rem"><div class="form-group"><input id="annTitle" placeholder="Title" style="width:100%"></div><div class="form-group"><textarea id="annMsg" placeholder="Message" rows="3" style="width:100%;resize:vertical"></textarea></div><button class="btn btn-primary" onclick="window.createAnnouncement()">Create Announcement</button></div>';
+    let html = `<h3 style="color:#00d4ff;margin-bottom:1rem">📢 Announcements</h3>
+    <div class="glass" style="padding:1rem;margin-bottom:1rem">
+      <div class="form-group"><input id="annTitle" placeholder="Title" style="width:100%"></div>
+      <div class="form-group"><textarea id="annMsg" placeholder="Message" rows="3" style="width:100%;resize:vertical"></textarea></div>
+      <button class="btn btn-primary" onclick="window.createAnnouncement()">Create Announcement</button>
+    </div>`;
     anns.forEach(a => {
-      html += `<div style="padding:0.7rem;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center">
-        <div><strong style="color:#fff">${a.title}</strong> <span style="color:#a0a0c0;font-size:0.8rem">${new Date(a.created_at).toLocaleDateString()}</span><p style="color:#a0a0c0;font-size:0.85rem;margin:0.3rem 0 0">${a.message}</p></div>
-        <button class="btn btn-danger btn-sm" onclick="window.deleteAnnouncement(${a.id})">Delete</button>
+      html += `<div class="glass" style="padding:1rem;margin-bottom:0.8rem">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong style="color:#fff">${a.title}</strong> <span style="color:#555;font-size:0.8rem">${a.is_active?'● Active':'○ Inactive'}</span></div>
+          <div><button class="btn btn-outline btn-sm" onclick="window.toggleAnnouncement(${a.id})">Toggle</button> <button class="btn btn-danger btn-sm" onclick="window.deleteAnnouncement(${a.id})">Delete</button></div>
+        </div>
+        <p style="color:#a0a0c0;font-size:0.85rem;margin:0.3rem 0 0">${a.message}</p>
       </div>`;
     });
     el.innerHTML = html;
   } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📢 Announcements</h3><p style="color:#ff3232">Error</p>'; }
 };
-
 window.createAnnouncement = async function() {
   await fetch('/api/admin/announcements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:document.getElementById('annTitle').value,message:document.getElementById('annMsg').value})});
-  showToast('Announcement created','success'); window.loadAdminAnnouncements();
+  showToast('Created'); window.loadAdminAnnouncements();
 };
-window.deleteAnnouncement = async function(id) {
-  await fetch('/api/admin/announcements/'+id,{method:'DELETE'}); showToast('Deleted'); window.loadAdminAnnouncements();
-};
+window.deleteAnnouncement = async function(id) { await fetch('/api/admin/announcements/'+id,{method:'DELETE'}); showToast('Deleted'); window.loadAdminAnnouncements(); };
+window.toggleAnnouncement = async function(id) { await fetch('/api/admin/announcements/'+id+'/toggle',{method:'POST'}); showToast('Toggled'); window.loadAdminAnnouncements(); };
 
-// === Orders ===
+// === ORDERS ===
 window.loadAdminOrders = async function() {
   const el = document.getElementById('adminContent');
   try {
     const orders = await (await fetch('/api/admin/product-orders')).json();
     let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">🛍 Product Orders</h3>';
-    if (!orders.length) { html += '<p style="color:#a0a0c0">No orders yet.</p>'; }
+    if (!orders.length) { html += '<p style="color:#a0a0c0">No orders.</p>'; }
     orders.forEach(o => {
-      const bc = o.status==='approved'?'badge-approved':o.status==='rejected'?'badge-rejected':'badge-pending';
-      html += `<div style="padding:0.7rem;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
-        <div><strong style="color:#fff">${o.product_name}</strong> — $${Number(o.product_price).toFixed(2)} <span class="badge ${bc}">${o.status}</span> by <span style="color:#a0a0c0">${o.username||'N/A'}</span>${o.shipping_address?'<br><span style="color:#555;font-size:0.8rem">Ship to: '+o.shipping_address+'</span>':''}</div>
-        ${o.status==='pending'?`<div style="display:flex;gap:0.3rem"><button class="btn btn-success btn-sm" onclick="window.updateOrder(${o.id},'approved')">Approve</button><button class="btn btn-danger btn-sm" onclick="window.updateOrder(${o.id},'rejected')">Reject</button></div>`:''}
+      html += `<div class="glass" style="padding:1rem;margin-bottom:0.8rem">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong style="color:#fff">${o.product_name}</strong> <span style="color:#555">$${Number(o.product_price).toFixed(2)} × ${o.quantity||1}</span> <span style="color:#a0a0c0">by ${o.username||'Guest'}</span></div>
+          <div>${o.status==='pending'?`<button class="btn btn-success btn-sm" onclick="window.updateOrder(${o.id},'approved')">Approve</button><button class="btn btn-danger btn-sm" onclick="window.updateOrder(${o.id},'rejected')">Reject</button>`:`<span style="color:${o.status==='approved'?'#22c55e':'#ff3232'}">${o.status}</span>`}</div>
+        </div>
       </div>`;
     });
     el.innerHTML = html;
   } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">🛍 Orders</h3><p style="color:#ff3232">Error</p>'; }
 };
+window.updateOrder = async function(id,status) { await fetch('/api/admin/product-orders/'+id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})}); showToast('Order '+status); window.loadAdminOrders(); };
 
-window.updateOrder = async function(id, status) {
-  await fetch('/api/admin/product-orders/'+id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
-  showToast('Order '+status); window.loadAdminOrders();
-};
-
-// === Tickets ===
+// === TICKETS ===
 window.loadAdminTickets = async function() {
   const el = document.getElementById('adminContent');
   try {
@@ -290,16 +395,10 @@ window.loadAdminTickets = async function() {
     el.innerHTML = html;
   } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">🎫 Tickets</h3><p style="color:#ff3232">Error</p>'; }
 };
+window.updateTicket = async function(id,status) { await fetch('/api/admin/support-ticket/'+id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})}); showToast('Ticket updated'); window.loadAdminTickets(); };
+window.deleteTicket = async function(id) { await fetch('/api/admin/support-ticket/'+id,{method:'DELETE'}); showToast('Ticket deleted'); window.loadAdminTickets(); };
 
-window.updateTicket = async function(id, status) {
-  await fetch('/api/admin/support-ticket/'+id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
-  showToast('Ticket updated'); window.loadAdminTickets();
-};
-window.deleteTicket = async function(id) {
-  await fetch('/api/admin/support-ticket/'+id,{method:'DELETE'}); showToast('Ticket deleted'); window.loadAdminTickets();
-};
-
-// === ROI Processing ===
+// === ROI ===
 window.loadAdminROI = async function() {
   const el = document.getElementById('adminContent');
   el.innerHTML = '<h3 style="color:#00d4ff">📈 ROI Processing</h3><p style="color:#a0a0c0">Loading...</p>';
@@ -309,46 +408,56 @@ window.loadAdminROI = async function() {
     <button class="btn btn-primary" onclick="window.processROI()" style="margin-bottom:1rem">⚡ Process Daily ROI Now</button>
     <div id="roiResult"></div>
     <div class="glass" style="padding:1rem;margin-bottom:1rem">
-      <p style="color:#a0a0c0;font-size:0.85rem;margin:0">Stage daily rates: S1 = 0.274% | S2 = 0.247% | S3 = 0.219% | S4 = 0.192%</p>
-      <p style="color:#f59e0b;font-size:0.85rem;margin:0.3rem 0 0">⚠️ ROI must be triggered manually by admin. No automatic cron.</p>
+      <p style="color:#a0a0c0;font-size:0.85rem;margin:0">Stage daily rates: S1=0.274% | S2=0.247% | S3=0.219% | S4=0.192%</p>
+      <p style="color:#f59e0b;font-size:0.85rem;margin:0.3rem 0 0">⚠️ ROI must be triggered manually by admin.</p>
     </div>`;
     if (cycles.length) {
-      html += '<table style="width:100%;border-collapse:collapse;font-size:0.8rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.3rem">User</th><th style="text-align:left;padding:0.3rem">Stage</th><th style="text-align:left;padding:0.3rem">ROI%</th><th style="text-align:left;padding:0.3rem">Base</th><th style="text-align:left;padding:0.3rem">Amount</th><th style="text-align:left;padding:0.3rem">Date</th></tr></thead><tbody>';
-      cycles.forEach(c => {
-        html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)"><td style="padding:0.3rem">${c.username||''}</td><td style="padding:0.3rem">${c.stage}</td><td style="padding:0.3rem">${c.roi_percent}%</td><td style="padding:0.3rem">$${Number(c.deposit_base).toFixed(2)}</td><td style="padding:0.3rem;color:#22c55e">$${Number(c.roi_amount).toFixed(4)}</td><td style="padding:0.3rem;color:#a0a0c0">${new Date(c.cycle_date).toLocaleDateString()}</td></tr>`;
-      });
-      html += '</tbody></table>';
-    } else {
-      html += '<p style="color:#a0a0c0;font-size:0.85rem">No ROI cycles recorded yet.</p>';
-    }
+      html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.8rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.3rem">User</th><th style="text-align:left;padding:0.3rem">Stage</th><th style="text-align:left;padding:0.3rem">ROI%</th><th style="text-align:left;padding:0.3rem">Base</th><th style="text-align:left;padding:0.3rem">Amount</th><th style="text-align:left;padding:0.3rem">Date</th></tr></thead><tbody>';
+      cycles.forEach(c => { html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)"><td style="padding:0.3rem">${c.username||''}</td><td style="padding:0.3rem">${c.stage}</td><td style="padding:0.3rem">${c.roi_percent}%</td><td style="padding:0.3rem">$${Number(c.deposit_base).toFixed(2)}</td><td style="padding:0.3rem;color:#22c55e">$${Number(c.roi_amount).toFixed(4)}</td><td style="padding:0.3rem;color:#a0a0c0">${new Date(c.cycle_date).toLocaleDateString()}</td></tr>`; });
+      html += '</tbody></table></div>';
+    } else { html += '<p style="color:#a0a0c0;font-size:0.85rem">No ROI cycles yet.</p>'; }
     el.innerHTML = html;
   } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📈 ROI</h3><p style="color:#ff3232">Error</p>'; }
 };
-
 window.processROI = async function() {
   try {
     const r = await (await fetch('/api/admin/process-roi',{method:'POST'})).json();
     const div = document.getElementById('roiResult');
     if (div) div.innerHTML = '<p style="color:#22c55e">✅ ' + r.message + '</p>';
-    setTimeout(()=>window.loadAdminROI(), 1500);
-  } catch(e) { showToast('ROI processing failed', 'error'); }
+    setTimeout(()=>window.loadAdminROI(),1500);
+  } catch(e) { showToast('ROI processing failed','error'); }
 };
 
-// === Settings ===
+// === SETTINGS ===
 window.loadAdminSettings = async function() {
   const el = document.getElementById('adminContent');
   try {
     const s = await (await fetch('/api/admin/settings')).json();
-    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">⚙️ Settings</h3>';
+    let html = `<h3 style="color:#00d4ff;margin-bottom:1rem">⚙️ Settings</h3>
+    <div class="glass" style="padding:1rem;margin-bottom:1rem">
+      <div class="form-group"><input id="setKey" placeholder="Key" style="width:40%;display:inline-block"> <input id="setVal" placeholder="Value" style="width:40%;display:inline-block"> <button class="btn btn-primary btn-sm" onclick="window.saveSetting()">Save</button></div>
+    </div>`;
     for (const [k,v] of Object.entries(s)) {
-      html += `<div style="padding:0.5rem;border-bottom:1px solid rgba(255,255,255,0.05)"><strong style="color:#a0a0c0">${k}</strong>: <span style="color:#fff">${v}</span></div>`;
+      html += `<div style="padding:0.5rem;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center">
+        <div><strong style="color:#a0a0c0">${k}</strong>: <span style="color:#fff">${v}</span></div>
+        <button class="btn btn-danger btn-sm" onclick="window.deleteSetting('${k}')">🗑</button>
+      </div>`;
     }
-    if (!Object.keys(s).length) html += '<p style="color:#a0a0c0">No settings configured.</p>';
+    if (!Object.keys(s).length) html += '<p style="color:#a0a0c0">No settings.</p>';
     el.innerHTML = html;
   } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">⚙️ Settings</h3><p style="color:#ff3232">Error</p>'; }
 };
+window.saveSetting = async function() {
+  const k=document.getElementById('setKey').value, v=document.getElementById('setVal').value;
+  if (!k) return showToast('Key required','error');
+  await fetch('/api/admin/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[k]:v})});
+  showToast('Saved'); window.loadAdminSettings();
+};
+window.deleteSetting = async function(key) {
+  await fetch('/api/admin/settings/'+key,{method:'DELETE'}); showToast('Deleted'); window.loadAdminSettings();
+};
 
-// === Stock Trades ===
+// === STOCK TRADES ===
 window.loadAdminStockTrades = async function() {
   const el = document.getElementById('adminContent');
   el.innerHTML = '<h3 style="color:#00d4ff">📊 Stock Trades</h3><p style="color:#a0a0c0">Loading...</p>';
@@ -361,7 +470,6 @@ window.loadAdminStockTrades = async function() {
       trades.forEach(t => {
         const bc = t.status==='completed'?'badge-completed':t.status==='rejected'?'badge-rejected':'badge-pending';
         const typeColor = t.type==='buy'?'#22c55e':'#f59e0b';
-        const dateStr = t.created_at ? new Date(t.created_at).toLocaleDateString() : '';
         html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)">
           <td style="padding:0.4rem;font-weight:600">${t.username||'N/A'}</td>
           <td style="padding:0.4rem;color:${typeColor};font-weight:600">${t.type.toUpperCase()}</td>
@@ -370,8 +478,8 @@ window.loadAdminStockTrades = async function() {
           <td style="padding:0.4rem;text-align:right">$${Number(t.price).toFixed(2)}</td>
           <td style="padding:0.4rem;text-align:right;font-weight:600">$${Number(t.total).toFixed(2)}</td>
           <td style="padding:0.4rem"><span class="badge ${bc}">${t.status}</span></td>
-          <td style="padding:0.4rem;color:#555;font-size:0.75rem">${dateStr}</td>
-          <td style="padding:0.4rem;text-align:center">${t.status==='pending'?`<div style="display:flex;gap:0.3rem;justify-content:center"><button class="btn btn-success btn-sm" onclick="window.approveStockTrade(${t.id})">✓</button><button class="btn btn-danger btn-sm" onclick="window.rejectStockTrade(${t.id})">✗</button></div>`:'—'}</td>
+          <td style="padding:0.4rem;color:#555;font-size:0.75rem">${t.created_at?new Date(t.created_at).toLocaleDateString():''}</td>
+          <td style="padding:0.4rem;text-align:center">${t.status==='pending'?`<button class="btn btn-success btn-sm" onclick="window.approveStockTrade(${t.id})">✓</button><button class="btn btn-danger btn-sm" onclick="window.rejectStockTrade(${t.id})">✗</button>`:'—'}</td>
         </tr>`;
       });
       html += '</tbody></table></div>';
@@ -379,25 +487,39 @@ window.loadAdminStockTrades = async function() {
     el.innerHTML = html;
   } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📊 Stocks</h3><p style="color:#ff3232">Error</p>'; }
 };
-
 window.approveStockTrade = async function(id) {
-  try {
-    const r = await (await fetch('/api/admin/stock-trade/'+id+'/approve',{method:'POST'})).json();
-    if (r.error) return showToast(r.error, 'error');
-    showToast('Trade approved — positions updated', 'success');
-    window.loadAdminStockTrades();
-  } catch(e) { showToast('Error approving trade', 'error'); }
+  try { const r=await(await fetch('/api/admin/stock-trade/'+id+'/approve',{method:'POST'})).json(); if(r.error) return showToast(r.error,'error'); showToast('Trade approved','success'); window.loadAdminStockTrades(); } catch(e) { showToast('Error','error'); }
 };
 window.rejectStockTrade = async function(id) {
-  try {
-    const r = await (await fetch('/api/admin/stock-trade/'+id+'/reject',{method:'POST'})).json();
-    if (r.error) return showToast(r.error, 'error');
-    showToast('Trade rejected', 'error');
-    window.loadAdminStockTrades();
-  } catch(e) { showToast('Error rejecting trade', 'error'); }
+  try { const r=await(await fetch('/api/admin/stock-trade/'+id+'/reject',{method:'POST'})).json(); if(r.error) return showToast(r.error,'error'); showToast('Trade rejected','error'); window.loadAdminStockTrades(); } catch(e) { showToast('Error','error'); }
 };
 
-// === Init ===
+// === LOGS ===
+window.loadAdminLogs = async function() {
+  const el = document.getElementById('adminContent');
+  el.innerHTML = '<h3 style="color:#00d4ff">📜 Admin Logs</h3><p style="color:#a0a0c0">Loading...</p>';
+  try {
+    const logs = await (await fetch('/api/admin/logs')).json();
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📜 Admin Action Logs</h3>';
+    if (!logs.length) { html += '<p style="color:#a0a0c0">No logs.</p>'; }
+    else {
+      html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.8rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.3rem">Date</th><th style="text-align:left;padding:0.3rem">Admin</th><th style="text-align:left;padding:0.3rem">Action</th><th style="text-align:left;padding:0.3rem">Target</th><th style="text-align:left;padding:0.3rem">Details</th></tr></thead><tbody>';
+      logs.forEach(l => {
+        html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)">
+          <td style="padding:0.3rem;color:#555;font-size:0.75rem">${l.created_at?new Date(l.created_at).toLocaleString():''}</td>
+          <td style="padding:0.3rem">${l.username||''}</td>
+          <td style="padding:0.3rem;color:#00d4ff;font-weight:600">${l.action}</td>
+          <td style="padding:0.3rem;color:#a0a0c0">${l.target||''}</td>
+          <td style="padding:0.3rem;color:#555;font-size:0.75rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.details||''}</td>
+        </tr>`;
+      });
+      html += '</tbody></table></div>';
+    }
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📜 Logs</h3><p style="color:#ff3232">Error</p>'; }
+};
+
+// === INIT ===
 window.loadAdminStats();
 window.showAdminSection('transactions');
 </script>
