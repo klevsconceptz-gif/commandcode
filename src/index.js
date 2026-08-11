@@ -3,7 +3,7 @@ import { cors } from 'hono/cors';
 import bcrypt from 'bcryptjs';
 
 const app = new Hono();
-app.use('/*', cors({ origin: '*', allowMethods: ['GET','POST','PUT','DELETE','OPTIONS'], allowHeaders: ['Content-Type','Authorization'] }));
+app.use('/*', cors({ origin: '*', allowMethods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'], allowHeaders: ['Content-Type','Authorization'] }));
 
 // --- Helpers ---
 // Simple JWT implementation for Workers runtime
@@ -246,7 +246,60 @@ app.get('/api/user/wallet', authMiddleware, async c => {
   return c.json({...wallet, stage:u.investment_plan, roi:getStageROI(u.investment_plan)});
 });
 
+// ===================== USER INBOX / MESSAGES =====================
+
+app.get('/api/user/messages', authMiddleware, async c => {
+  const u = c.get('user');
+  const msgs = await c.env.DB.prepare('SELECT id,title,body,type,is_read,from_admin,reference,created_at FROM user_messages WHERE user_id=? ORDER BY created_at DESC LIMIT 50').bind(u.id).all();
+  return c.json(msgs.results);
+});
+
+app.get('/api/user/messages/unread-count', authMiddleware, async c => {
+  const u = c.get('user');
+  const r = await c.env.DB.prepare('SELECT COUNT(*) as c FROM user_messages WHERE user_id=? AND is_read=0').bind(u.id).first();
+  return c.json({count: r.c});
+});
+
+app.post('/api/user/messages/:id/read', authMiddleware, async c => {
+  const u = c.get('user');
+  await c.env.DB.prepare('UPDATE user_messages SET is_read=1 WHERE id=? AND user_id=?').bind(c.req.param('id'), u.id).run();
+  return c.json({message:'Marked as read'});
+});
+
+app.post('/api/user/messages/mark-all-read', authMiddleware, async c => {
+  const u = c.get('user');
+  await c.env.DB.prepare('UPDATE user_messages SET is_read=1 WHERE user_id=? AND is_read=0').bind(u.id).run();
+  return c.json({message:'All marked as read'});
+});
+
+app.delete('/api/user/messages/:id', authMiddleware, async c => {
+  const u = c.get('user');
+  await c.env.DB.prepare('DELETE FROM user_messages WHERE id=? AND user_id=?').bind(c.req.param('id'), u.id).run();
+  return c.json({message:'Message deleted'});
+});
+
 // ===================== ADMIN ROUTES =====================
+
+// Admin send message to user
+app.post('/api/admin/user/:id/message', adminMiddleware, async c => {
+  const {title, body, type} = await c.req.json();
+  if (!title || !body) return c.json({error:'Title and body required'}, 400);
+  const userId = c.req.param('id');
+  const r = await c.env.DB.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin) VALUES (?,?,?,?,1)').bind(userId, title, body, type||'info').run();
+  return c.json({id:r.meta.last_row_id, message:'Message sent'}, 201);
+});
+
+// Admin view all messages for a user
+app.get('/api/admin/user/:id/messages', adminMiddleware, async c => {
+  const msgs = await c.env.DB.prepare('SELECT * FROM user_messages WHERE user_id=? ORDER BY created_at DESC').bind(c.req.param('id')).all();
+  return c.json(msgs.results);
+});
+
+// Admin delete a message
+app.delete('/api/admin/message/:id', adminMiddleware, async c => {
+  await c.env.DB.prepare('DELETE FROM user_messages WHERE id=?').bind(c.req.param('id')).run();
+  return c.json({message:'Message deleted'});
+});
 
 app.get('/api/admin/stats', adminMiddleware, async c => {
   const db = c.env.DB;
@@ -299,17 +352,36 @@ app.get('/api/admin/user/:id', adminMiddleware, async c => {
 app.put('/api/admin/user/:id', adminMiddleware, async c => {
   const data = await c.req.json();
   const id = c.req.param('id');
+  const db = c.env.DB;
   const fields = []; const vals = [];
-  for (const k of ['full_name','email','phone','is_active','investment_plan']) { if (data[k] !== undefined) { fields.push(k+'=?'); vals.push(data[k]); } }
+  for (const k of ['full_name','email','phone','username','is_active','is_admin','investment_plan','balance','total_deposit','total_profit']) {
+    if (data[k] !== undefined) { fields.push(k+'=?'); vals.push(data[k]); }
+  }
   if (!fields.length) return c.json({error:'No fields to update'}, 400);
-  vals.push(id);
-  await c.env.DB.prepare('UPDATE users SET '+fields.join(',')+', updated_at=? WHERE id=?').bind(...vals, now(), id).run();
+  vals.push(now(), id);
+  await db.prepare('UPDATE users SET '+fields.join(',')+', updated_at=? WHERE id=?').bind(...vals).run();
+  // Log admin action
+  const admin = c.get('user');
+  await db.prepare('INSERT INTO admin_logs (admin_id,action,target,details) VALUES (?,?,?,?)').bind(admin.id, 'update_user', 'user:'+id, JSON.stringify(data)).run();
   return c.json({message:'User updated'});
 });
 
 app.delete('/api/admin/user/:id', adminMiddleware, async c => {
-  await c.env.DB.prepare('DELETE FROM users WHERE id=?').bind(c.req.param('id')).run();
-  return c.json({message:'User deleted'});
+  const id = c.req.param('id');
+  const db = c.env.DB;
+  // Prevent deleting self
+  const admin = c.get('user');
+  if (Number(id) === admin.id) return c.json({error:'Cannot delete your own account'}, 400);
+  // Clean up related records
+  await db.prepare('DELETE FROM user_wallets WHERE user_id=?').bind(id).run();
+  await db.prepare('DELETE FROM stock_positions WHERE user_id=?').bind(id).run();
+  await db.prepare('DELETE FROM transactions WHERE user_id=?').bind(id).run();
+  await db.prepare('DELETE FROM support_tickets WHERE user_id=?').bind(id).run();
+  await db.prepare('DELETE FROM roi_cycles WHERE user_id=?').bind(id).run();
+  await db.prepare('DELETE FROM users WHERE id=?').bind(id).run();
+  // Log
+  await db.prepare('INSERT INTO admin_logs (admin_id,action,target,details) VALUES (?,?,?,?)').bind(admin.id, 'delete_user', 'user:'+id, '').run();
+  return c.json({message:'User deleted with all related data'});
 });
 
 app.post('/api/admin/user/:id/unlock', adminMiddleware, async c => {
@@ -331,7 +403,10 @@ app.post('/api/admin/user/:id/stage', adminMiddleware, async c => {
 });
 
 app.post('/api/admin/toggle-user/:id', adminMiddleware, async c => {
-  await c.env.DB.prepare('UPDATE users SET is_active = CASE WHEN is_active=1 THEN 0 ELSE 1 END WHERE id=?').bind(c.req.param('id')).run();
+  const admin = c.get('user');
+  const id = Number(c.req.param('id'));
+  if (id === admin.id) return c.json({error:'Cannot toggle your own account'}, 400);
+  await c.env.DB.prepare('UPDATE users SET is_active = CASE WHEN is_active=1 THEN 0 ELSE 1 END WHERE id=?').bind(id).run();
   return c.json({message:'User toggled'});
 });
 
@@ -384,6 +459,13 @@ app.post('/api/admin/transaction/:id', adminMiddleware, async c => {
     }
   }
   await db.prepare('UPDATE transactions SET status=?, updated_at=? WHERE id=?').bind(status, now(), id).run();
+  
+  // Send inbox message to user about transaction status change
+  const txTypeLabel = tx.type === 'deposit' ? 'Deposit' : tx.type === 'withdrawal' ? 'Withdrawal' : tx.type;
+  const txStatusEmoji = status === 'approved' ? '✅' : '❌';
+  const txMsgTitle = `${txStatusEmoji} ${txTypeLabel} ${status}`;
+  const txMsgBody = `Your ${txTypeLabel.toLowerCase()} of $${Number(tx.amount).toFixed(2)} has been ${status}. Reference: ${tx.reference||'N/A'}`;
+  await db.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin,reference) VALUES (?,?,?,?,1,?)').bind(tx.user_id, txMsgTitle, txMsgBody, tx.type, tx.reference||'').run();
   
   // Auto-link purchase requests / stock trades
   if (tx.linked_type && tx.linked_id && status === 'approved') {
@@ -488,13 +570,24 @@ app.patch('/api/admin/user/:id/wallet', adminMiddleware, async c => {
       }
     }
 
+    const description = data.description || '';
     const ref = genRef();
     const opLabel = operation === 'add' ? '+' : operation === 'subtract' ? '-' : '=';
-    await db.prepare('INSERT INTO transactions (user_id,type,amount,status,reference,description) VALUES (?,?,?,?,?,?)').bind(userId, 'admin_adjust', amt, 'approved', ref, `Admin wallet: ${field} ${opLabel} ${amt} (was ${oldVal.toFixed(2)}, now ${newVal.toFixed(2)})`).run();
+    const desc = `Admin wallet: ${field} ${opLabel} ${amt} (was ${oldVal.toFixed(2)}, now ${newVal.toFixed(2)})` + (description ? ` | Description: ${description}` : '');
+    await db.prepare('INSERT INTO transactions (user_id,type,amount,status,reference,description) VALUES (?,?,?,?,?,?)').bind(userId, 'admin_adjust', amt, 'approved', ref, desc).run();
+
+    // Log to admin_logs
+    const admin = c.get('user');
+    await db.prepare('INSERT INTO admin_logs (admin_id,action,target,details) VALUES (?,?,?,?)').bind(admin.id, 'wallet_adjust', 'user:'+userId, desc).run();
+
+    // Send inbox message to user with the description
+    const msgTitle = `Wallet Update: ${field} ${opLabel} $${amt.toFixed(2)}`;
+    const msgBody = `Your ${field} has been updated: ${opLabel}$${amt.toFixed(2)} (was $${oldVal.toFixed(2)}, now $${newVal.toFixed(2)})` + (description ? `\n\n${description}` : '');
+    await db.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin,reference) VALUES (?,?,?,?,1,?)').bind(userId, msgTitle, msgBody, 'wallet', ref).run();
 
     const updatedUser = await db.prepare('SELECT id,username,balance,total_deposit,total_profit,investment_plan FROM users WHERE id=?').bind(userId).first();
     const updatedWallet = await db.prepare('SELECT deposit_balance,roi_balance,bonus_balance,total_roi_earned,last_roi_at FROM user_wallets WHERE user_id=?').bind(userId).first();
-    return c.json({message:`${field} ${operation} ${amt}`, field, operation, amount:amt, oldValue:oldVal, newValue:newVal, reference:ref, user:updatedUser, wallet:updatedWallet});
+    return c.json({message:`${field} ${operation} ${amt}`, field, operation, amount:amt, oldValue:oldVal, newValue:newVal, reference:ref, description, user:updatedUser, wallet:updatedWallet});
   } catch(e) {
     return c.json({error:'Wallet update failed: ' + e.message}, 500);
   }
@@ -576,7 +669,15 @@ app.get('/api/admin/product-orders', adminMiddleware, async c => {
 
 app.post('/api/admin/product-orders/:id/status', adminMiddleware, async c => {
   const {status} = await c.req.json();
-  await c.env.DB.prepare('UPDATE product_orders SET status=?, updated_at=? WHERE id=?').bind(status, now(), c.req.param('id')).run();
+  const db = c.env.DB;
+  const id = c.req.param('id');
+  await db.prepare('UPDATE product_orders SET status=?, updated_at=? WHERE id=?').bind(status, now(), id).run();
+  // Send inbox message to user
+  const order = await db.prepare('SELECT user_id, product_name, product_price FROM product_orders WHERE id=?').bind(id).first();
+  if (order) {
+    const emoji = status === 'approved' ? '✅' : status === 'rejected' ? '❌' : '📦';
+    await db.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin) VALUES (?,?,?,?,1)').bind(order.user_id, `${emoji} Order ${status}`, `Your order for ${order.product_name} ($${Number(order.product_price).toFixed(2)}) has been ${status}.`, 'order').run();
+  }
   return c.json({message:'Order updated'});
 });
 
@@ -710,6 +811,9 @@ app.post('/api/admin/stock-trade/:id/approve', adminMiddleware, async c => {
   }
 
   await db.prepare('UPDATE stock_trades SET status=?, updated_at=? WHERE id=?').bind('completed', now(), id).run();
+  // Send inbox message
+  const tradeLabel = trade.type === 'buy' ? 'Stock Buy' : 'Stock Sell';
+  await db.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin) VALUES (?,?,?,?,1)').bind(trade.user_id, `✅ ${tradeLabel} Approved`, `Your ${tradeLabel.toLowerCase()} order for ${Number(trade.shares).toFixed(2)} shares of ${trade.symbol} at $${Number(trade.price).toFixed(2)} has been approved and executed.`, 'stock').run();
   return c.json({message:'Stock trade approved'});
 });
 
@@ -722,7 +826,232 @@ app.post('/api/admin/stock-trade/:id/reject', adminMiddleware, async c => {
   if (trade && trade.transaction_id) {
     await db.prepare('UPDATE transactions SET status=?, updated_at=? WHERE id=?').bind('rejected', now(), trade.transaction_id).run();
   }
+  // Send inbox message
+  if (trade) {
+    const tradeLabel = trade.type === 'buy' ? 'Stock Buy' : 'Stock Sell';
+    await db.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin) VALUES (?,?,?,?,1)').bind(trade.user_id, `❌ ${tradeLabel} Rejected`, `Your ${tradeLabel.toLowerCase()} order for ${Number(trade.shares).toFixed(2)} shares of ${trade.symbol} at $${Number(trade.price).toFixed(2)} has been rejected.`, 'stock').run();
+  }
   return c.json({message:'Stock trade rejected'});
+});
+
+// --- Extended Admin CRUD Routes ---
+
+// Stock Trades: Edit
+app.put('/api/admin/stock-trade/:id', adminMiddleware, async c => {
+  const data = await c.req.json();
+  const id = c.req.param('id');
+  const db = c.env.DB;
+  const fields = []; const vals = [];
+  for (const k of ['status','shares','price','symbol','type']) { if (data[k] !== undefined) { fields.push(k+'=?'); vals.push(data[k]); } }
+  if (!fields.length) return c.json({error:'No fields to update'}, 400);
+  vals.push(now(), id);
+  await db.prepare('UPDATE stock_trades SET '+fields.join(',')+', updated_at=? WHERE id=?').bind(...vals).run();
+  return c.json({message:'Stock trade updated'});
+});
+
+// Stock Trades: Delete
+app.delete('/api/admin/stock-trade/:id', adminMiddleware, async c => {
+  const id = c.req.param('id');
+  await c.env.DB.prepare('DELETE FROM stock_trades WHERE id=?').bind(id).run();
+  return c.json({message:'Stock trade deleted'});
+});
+
+// Transactions: Create manual
+app.post('/api/admin/transaction-create', adminMiddleware, async c => {
+  const data = await c.req.json();
+  if (!data.user_id || !data.type || !data.amount) return c.json({error:'user_id, type, and amount required'}, 400);
+  const amt = Number(data.amount);
+  if (isNaN(amt) || amt <= 0) return c.json({error:'Amount must be positive'}, 400);
+  const ref = genRef();
+  const r = await c.env.DB.prepare('INSERT INTO transactions (user_id,type,amount,status,payment_method,wallet_address,description,reference,linked_type,linked_id) VALUES (?,?,?,?,?,?,?,?,?,?)').bind(data.user_id, data.type, amt, data.status||'pending', data.payment_method||'', data.wallet_address||'', data.description||'Admin manual transaction', ref, data.linked_type||null, data.linked_id||null).run();
+  const admin = c.get('user');
+  await c.env.DB.prepare('INSERT INTO admin_logs (admin_id,action,target,details) VALUES (?,?,?,?)').bind(admin.id, 'create_transaction', 'transaction:'+r.meta.last_row_id, JSON.stringify(data)).run();
+  return c.json({id:r.meta.last_row_id, reference:ref, message:'Transaction created'}, 201);
+});
+
+// Transactions: Edit
+app.put('/api/admin/transaction/:id', adminMiddleware, async c => {
+  const data = await c.req.json();
+  const id = c.req.param('id');
+  const db = c.env.DB;
+  const fields = []; const vals = [];
+  for (const k of ['status','amount','payment_method','wallet_address','description','type']) { if (data[k] !== undefined) { fields.push(k+'=?'); vals.push(data[k]); } }
+  if (!fields.length) return c.json({error:'No fields to update'}, 400);
+  vals.push(now(), id);
+  await db.prepare('UPDATE transactions SET '+fields.join(',')+', updated_at=? WHERE id=?').bind(...vals).run();
+  const admin = c.get('user');
+  await db.prepare('INSERT INTO admin_logs (admin_id,action,target,details) VALUES (?,?,?,?)').bind(admin.id, 'update_transaction', 'transaction:'+id, JSON.stringify(data)).run();
+  return c.json({message:'Transaction updated'});
+});
+
+// Support Tickets: Edit
+app.put('/api/admin/support-ticket/:id', adminMiddleware, async c => {
+  const data = await c.req.json();
+  const id = c.req.param('id');
+  const db = c.env.DB;
+  const fields = []; const vals = [];
+  for (const k of ['subject','message','status','priority']) { if (data[k] !== undefined) { fields.push(k+'=?'); vals.push(data[k]); } }
+  if (!fields.length) return c.json({error:'No fields to update'}, 400);
+  vals.push(now(), id);
+  await db.prepare('UPDATE support_tickets SET '+fields.join(',')+', updated_at=? WHERE id=?').bind(...vals).run();
+  return c.json({message:'Ticket updated'});
+});
+
+// Support Tickets: Create (admin can create ticket for any user)
+app.post('/api/admin/support-ticket', adminMiddleware, async c => {
+  const {user_id, subject, message, priority} = await c.req.json();
+  if (!subject || !message) return c.json({error:'Subject and message required'}, 400);
+  const r = await c.env.DB.prepare('INSERT INTO support_tickets (user_id,subject,message,priority) VALUES (?,?,?,?)').bind(user_id||0, subject, message, priority||'medium').run();
+  return c.json({id:r.meta.last_row_id, message:'Ticket created'}, 201);
+});
+
+// Product Orders: Edit
+app.put('/api/admin/product-order/:id', adminMiddleware, async c => {
+  const data = await c.req.json();
+  const id = c.req.param('id');
+  const db = c.env.DB;
+  const fields = []; const vals = [];
+  for (const k of ['status','product_name','product_price','quantity','shipping_address','payment_method']) { if (data[k] !== undefined) { fields.push(k+'=?'); vals.push(data[k]); } }
+  if (!fields.length) return c.json({error:'No fields to update'}, 400);
+  vals.push(now(), id);
+  await db.prepare('UPDATE product_orders SET '+fields.join(',')+', updated_at=? WHERE id=?').bind(...vals).run();
+  return c.json({message:'Order updated'});
+});
+
+// Purchase Requests: Delete
+app.delete('/api/admin/purchase-request/:id', adminMiddleware, async c => {
+  await c.env.DB.prepare('DELETE FROM purchase_requests WHERE id=?').bind(c.req.param('id')).run();
+  return c.json({message:'Purchase request deleted'});
+});
+
+// Purchase Requests: Edit
+app.put('/api/admin/purchase-request/:id', adminMiddleware, async c => {
+  const data = await c.req.json();
+  const id = c.req.param('id');
+  const db = c.env.DB;
+  const fields = []; const vals = [];
+  for (const k of ['status','product_name','product_price','quantity','shipping_address']) { if (data[k] !== undefined) { fields.push(k+'=?'); vals.push(data[k]); } }
+  if (!fields.length) return c.json({error:'No fields to update'}, 400);
+  vals.push(now(), id);
+  await db.prepare('UPDATE purchase_requests SET '+fields.join(',')+', updated_at=? WHERE id=?').bind(...vals).run();
+  return c.json({message:'Purchase request updated'});
+});
+
+// ROI Cycles: Delete
+app.delete('/api/admin/roi-cycle/:id', adminMiddleware, async c => {
+  await c.env.DB.prepare('DELETE FROM roi_cycles WHERE id=?').bind(c.req.param('id')).run();
+  return c.json({message:'ROI cycle deleted'});
+});
+
+// Bulk approve all pending transactions
+app.post('/api/admin/bulk-approve', adminMiddleware, async c => {
+  const db = c.env.DB;
+  const pending = await db.prepare("SELECT id FROM transactions WHERE status='pending'").all();
+  let approved = 0;
+  for (const tx of pending.results) {
+    // Re-process each through the approval endpoint logic
+    const txData = await db.prepare('SELECT * FROM transactions WHERE id=?').bind(tx.id).first();
+    if (!txData) continue;
+    if (txData.type === 'deposit') {
+      const user = await db.prepare('SELECT total_deposit FROM users WHERE id=?').bind(txData.user_id).first();
+      if (!user) continue;
+      const newDeposit = (user.total_deposit||0) + txData.amount;
+      const newStage = getInvestmentStage(newDeposit);
+      await db.prepare('UPDATE users SET balance=balance+?, total_deposit=?, investment_plan=?, updated_at=? WHERE id=?').bind(txData.amount, newDeposit, newStage, now(), txData.user_id).run();
+      await db.prepare('UPDATE user_wallets SET deposit_balance=deposit_balance+? WHERE user_id=?').bind(txData.amount, txData.user_id).run();
+    } else if (txData.type === 'withdrawal') {
+      const user = await db.prepare('SELECT balance FROM users WHERE id=?').bind(txData.user_id).first();
+      if (!user || user.balance < txData.amount) { await db.prepare('UPDATE transactions SET status=? WHERE id=?').bind('rejected', tx.id).run(); continue; }
+      await db.prepare('UPDATE users SET balance=balance-?, updated_at=? WHERE id=?').bind(txData.amount, now(), txData.user_id).run();
+      const wallet = await db.prepare('SELECT deposit_balance, roi_balance, bonus_balance FROM user_wallets WHERE user_id=?').bind(txData.user_id).first();
+      if (wallet) {
+        let remaining = txData.amount;
+        if (wallet.deposit_balance >= remaining) { await db.prepare('UPDATE user_wallets SET deposit_balance=deposit_balance-? WHERE user_id=?').bind(remaining, txData.user_id).run(); remaining = 0; }
+        else if (wallet.deposit_balance > 0) { remaining -= wallet.deposit_balance; await db.prepare('UPDATE user_wallets SET deposit_balance=0 WHERE user_id=?').bind(txData.user_id).run(); }
+        if (remaining > 0 && wallet.roi_balance >= remaining) { await db.prepare('UPDATE user_wallets SET roi_balance=roi_balance-? WHERE user_id=?').bind(remaining, txData.user_id).run(); remaining = 0; }
+        else if (remaining > 0 && wallet.roi_balance > 0) { remaining -= wallet.roi_balance; await db.prepare('UPDATE user_wallets SET roi_balance=0 WHERE user_id=?').bind(txData.user_id).run(); }
+        if (remaining > 0) { await db.prepare('UPDATE user_wallets SET bonus_balance=GREATEST(0, bonus_balance-?) WHERE user_id=?').bind(remaining, txData.user_id).run(); }
+      }
+    }
+    await db.prepare('UPDATE transactions SET status=?, updated_at=? WHERE id=?').bind('approved', now(), tx.id).run();
+    approved++;
+  }
+  return c.json({message:`Bulk approved ${approved} transactions`, approved});
+});
+
+// Bulk reject all pending transactions
+app.post('/api/admin/bulk-reject', adminMiddleware, async c => {
+  const db = c.env.DB;
+  const r = await db.prepare("UPDATE transactions SET status='rejected', updated_at=? WHERE status='pending'").bind(now()).run();
+  return c.json({message:`Bulk rejected ${r.meta.changes} transactions`, rejected: r.meta.changes});
+});
+
+// Admin logs: Create (for manual notes)
+app.post('/api/admin/logs', adminMiddleware, async c => {
+  const {action, target, details} = await c.req.json();
+  const admin = c.get('user');
+  const r = await c.env.DB.prepare('INSERT INTO admin_logs (admin_id,action,target,details) VALUES (?,?,?,?)').bind(admin.id, action||'note', target||'', details||'').run();
+  return c.json({id:r.meta.last_row_id, message:'Log entry created'}, 201);
+});
+
+// Admin logs: Delete
+app.delete('/api/admin/logs/:id', adminMiddleware, async c => {
+  await c.env.DB.prepare('DELETE FROM admin_logs WHERE id=?').bind(c.req.param('id')).run();
+  return c.json({message:'Log entry deleted'});
+});
+
+// Stock positions: Admin view all
+app.get('/api/admin/stock-positions', adminMiddleware, async c => {
+  const positions = await c.env.DB.prepare('SELECT p.*, u.username FROM stock_positions p LEFT JOIN users u ON p.user_id=u.id ORDER BY p.updated_at DESC').all();
+  return c.json(positions.results);
+});
+
+// Stock positions: Admin update
+app.put('/api/admin/stock-position/:id', adminMiddleware, async c => {
+  const data = await c.req.json();
+  const id = c.req.param('id');
+  const db = c.env.DB;
+  const fields = []; const vals = [];
+  for (const k of ['shares','avg_price','current_price','symbol']) { if (data[k] !== undefined) { fields.push(k+'=?'); vals.push(data[k]); } }
+  if (!fields.length) return c.json({error:'No fields to update'}, 400);
+  vals.push(now(), id);
+  await db.prepare('UPDATE stock_positions SET '+fields.join(',')+', updated_at=? WHERE id=?').bind(...vals).run();
+  return c.json({message:'Stock position updated'});
+});
+
+// Stock positions: Admin delete
+app.delete('/api/admin/stock-position/:id', adminMiddleware, async c => {
+  await c.env.DB.prepare('DELETE FROM stock_positions WHERE id=?').bind(c.req.param('id')).run();
+  return c.json({message:'Stock position deleted'});
+});
+
+// User wallets: Admin view all wallets summary
+app.get('/api/admin/wallets', adminMiddleware, async c => {
+  const wallets = await c.env.DB.prepare('SELECT w.*, u.username, u.balance, u.total_deposit, u.total_profit, u.investment_plan FROM user_wallets w LEFT JOIN users u ON w.user_id=u.id ORDER BY u.id DESC').all();
+  return c.json(wallets.results);
+});
+
+// Settings: Delete a key
+app.delete('/api/admin/settings/:key', adminMiddleware, async c => {
+  await c.env.DB.prepare('DELETE FROM admin_settings WHERE key=?').bind(c.req.param('key')).run();
+  return c.json({message:'Setting deleted'});
+});
+
+// Announcements: Toggle active
+app.post('/api/admin/announcements/:id/toggle', adminMiddleware, async c => {
+  await c.env.DB.prepare('UPDATE announcements SET is_active = CASE WHEN is_active=1 THEN 0 ELSE 1 END WHERE id=?').bind(c.req.param('id')).run();
+  return c.json({message:'Announcement toggled'});
+});
+
+// Database stats endpoint for admin dashboard
+app.get('/api/admin/db-stats', adminMiddleware, async c => {
+  const db = c.env.DB;
+  const tables = ['users','transactions','payment_settings','support_tickets','announcements','admin_settings','product_orders','admin_logs','user_wallets','roi_cycles','purchase_requests','stock_positions','stock_trades'];
+  const counts = {};
+  for (const t of tables) {
+    try { counts[t] = (await db.prepare('SELECT COUNT(*) as c FROM '+t).first()).c; } catch(e) { counts[t] = -1; }
+  }
+  return c.json(counts);
 });
 
 // --- User Stock Routes ---

@@ -4,6 +4,7 @@
 
 <div class="tab-strip">
 <button class="btn btn-primary btn-sm" onclick="window.showSection('wallet')">💳 Wallet</button>
+<button class="btn btn-outline btn-sm" onclick="window.showSection('inbox')">📨 Inbox</button>
 <button class="btn btn-outline btn-sm" onclick="window.showSection('deposit')">💰 Deposit</button>
 <button class="btn btn-outline btn-sm" onclick="window.showSection('withdraw')">💸 Withdraw</button>
 <button class="btn btn-outline btn-sm" onclick="window.showSection('transactions')">📋 Transactions</button>
@@ -14,14 +15,27 @@
 </div>
 
 <script>
+// Inbox unread badge
+let _unreadCount = 0;
+window.updateInboxBadge = async function() {
+  try {
+    const r = await (await fetch('/api/user/messages/unread-count')).json();
+    _unreadCount = r.count || 0;
+    const badge = document.getElementById('inboxBadge');
+    if (badge) badge.textContent = _unreadCount > 0 ? _unreadCount : '';
+    if (badge) badge.style.display = _unreadCount > 0 ? 'inline-block' : 'none';
+  } catch(e) {}
+};
+
 window.showSection = function(section) {
   const el = document.getElementById('dashContent');
-  // Highlight active section button
   const btns = el.parentElement.querySelectorAll('.btn-sm');
   btns.forEach(b => b.className = b.className.replace('btn-primary','btn-outline'));
   
   if (section === 'wallet') {
     window.loadWalletData();
+  } else if (section === 'inbox') {
+    window.loadInbox();
   } else if (section === 'deposit') {
     el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">💰 Make Deposit</h3>
     <div style="max-width:500px">
@@ -78,6 +92,83 @@ window.showSection = function(section) {
   }
 };
 
+// === INBOX ===
+window.loadInbox = async function() {
+  const el = document.getElementById('dashContent');
+  el.innerHTML = '<h3 style="color:#00d4ff">📨 Inbox</h3><p style="color:#a0a0c0">Loading...</p>';
+  try {
+    const msgs = await (await fetch('/api/user/messages')).json();
+    if (!msgs.length) {
+      el.innerHTML = '<h3 style="color:#00d4ff;margin-bottom:1rem">📨 Inbox</h3><div class="glass" style="padding:2rem;text-align:center"><p style="color:#a0a0c0;font-size:1.1rem">📭 No messages yet</p><p style="color:#555;font-size:0.85rem">Admin notifications about your account will appear here</p></div>';
+      return;
+    }
+    let html = `<h3 style="color:#00d4ff;margin-bottom:1rem">📨 Inbox <span style="color:#f59e0b;font-size:0.85rem">(${_unreadCount} unread)</span></h3>
+    <div style="margin-bottom:1rem"><button class="btn btn-outline btn-sm" onclick="window.markAllRead()">✓ Mark All Read</button></div>`;
+    msgs.forEach(m => {
+      const typeColors = {wallet:'#00d4ff',deposit:'#22c55e',withdrawal:'#f59e0b',stock:'#e879f9',order:'#06b6d4',info:'#a0a0c0',admin_adjust:'#f59e0b'};
+      const typeIcons = {wallet:'💰',deposit:'📥',withdrawal:'📤',stock:'📊',order:'🛍',info:'ℹ️',admin_adjust:'⚙️'};
+      const tc = typeColors[m.type] || '#a0a0c0';
+      const ti = typeIcons[m.type] || '📨';
+      const unreadStyle = m.is_read ? '' : 'border-left:3px solid #00d4ff;background:rgba(0,212,255,0.04);';
+      const dateStr = m.created_at ? new Date(m.created_at).toLocaleString() : '';
+      html += `<div class="glass" style="padding:1rem;margin-bottom:0.6rem;${unreadStyle}cursor:pointer" onclick="window.readMessage(${m.id})">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem">
+              <span style="font-size:1.1rem">${ti}</span>
+              <strong style="color:${m.is_read ? '#e0e0e0' : '#fff'};font-size:0.95rem">${m.title}</strong>
+              ${m.is_read ? '' : '<span style="background:#00d4ff;color:#000;font-size:0.65rem;padding:1px 6px;border-radius:10px;font-weight:700">NEW</span>'}
+            </div>
+            <p style="color:#a0a0c0;font-size:0.85rem;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.body.split('\n')[0]}</p>
+          </div>
+          <div style="text-align:right;min-width:100px">
+            <span style="color:${tc};font-size:0.7rem;font-weight:600">${m.type.toUpperCase()}</span><br>
+            <span style="color:#555;font-size:0.75rem">${dateStr}</span>
+          </div>
+        </div>
+      </div>`;
+    });
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📨 Inbox</h3><p style="color:#ff3232">Error loading</p>'; }
+};
+
+window.readMessage = async function(id) {
+  try {
+    await fetch('/api/user/messages/'+id+'/read', {method:'POST'});
+    // Now show the full message in a modal-like view
+    const msgs = await (await fetch('/api/user/messages')).json();
+    const m = msgs.find(x => x.id === id);
+    if (!m) return window.loadInbox();
+    const el = document.getElementById('dashContent');
+    const typeColors = {wallet:'#00d4ff',deposit:'#22c55e',withdrawal:'#f59e0b',stock:'#e879f9',order:'#06b6d4',info:'#a0a0c0',admin_adjust:'#f59e0b'};
+    const tc = typeColors[m.type] || '#a0a0c0';
+    const dateStr = m.created_at ? new Date(m.created_at).toLocaleString() : '';
+    el.innerHTML = `<div style="margin-bottom:1rem"><button class="btn btn-outline btn-sm" onclick="window.loadInbox()">← Back to Inbox</button></div>
+    <div class="glass" style="padding:1.5rem">
+      <h3 style="color:${tc};margin:0 0 0.5rem">${m.title}</h3>
+      <p style="color:#555;font-size:0.8rem;margin:0 0 1rem">${m.type.toUpperCase()} · ${dateStr}</p>
+      <div style="color:#e0e0e0;font-size:0.95rem;line-height:1.6;white-space:pre-wrap">${m.body}</div>
+      ${m.reference ? `<p style="color:#555;font-size:0.8rem;margin-top:1rem">Ref: ${m.reference}</p>` : ''}
+      <div style="margin-top:1.5rem"><button class="btn btn-danger btn-sm" onclick="window.deleteMessage(${m.id})">🗑 Delete</button></div>
+    </div>`;
+    _unreadCount = Math.max(0, _unreadCount - 1);
+    window.updateInboxBadge();
+  } catch(e) { showToast('Error', 'error'); }
+};
+
+window.deleteMessage = async function(id) {
+  await fetch('/api/user/messages/'+id, {method:'DELETE'});
+  showToast('Message deleted');
+  window.loadInbox();
+};
+
+window.markAllRead = async function() {
+  await fetch('/api/user/messages/mark-all-read', {method:'POST'});
+  _unreadCount = 0;
+  window.loadInbox();
+  window.updateInboxBadge();
+};
+
 window.loadPaymentDetails = async function() {
   try {
     const methods = await (await fetch('/api/payment-methods')).json();
@@ -89,9 +180,7 @@ window.loadPaymentDetails = async function() {
       if (method && method.details && method.details.length) {
         div.innerHTML = '<h4 style="color:#f59e0b;margin-bottom:0.8rem">💳 Payment Details</h4>' +
           method.details.map(d => `<div class="glass" style="padding:0.8rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center"><div><span style="color:#a0a0c0;font-size:0.8rem">${d.label}</span><br><strong style="color:#fff;word-break:break-all">${d.value}</strong></div>${d.copyable ? `<button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText('${d.value}');showToast('Copied!','success')">Copy</button>` : ''}</div>`).join('');
-      } else {
-        div.innerHTML = '';
-      }
+      } else { div.innerHTML = ''; }
     });
     sel.dispatchEvent(new Event('change'));
   } catch(e) {}
@@ -139,15 +228,15 @@ window.loadTransactions = async function() {
   el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#a0a0c0">Loading...</p>';
   try {
     const r = await (await fetch('/api/user/transactions')).json();
-    if (!r.length) { el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#a0a0c0">No transactions yet. Make a deposit to get started!</p>'; return; }
-    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📋 Transactions</h3><table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.5rem">Type</th><th style="text-align:left;padding:0.5rem">Amount</th><th style="text-align:left;padding:0.5rem">Method</th><th style="text-align:left;padding:0.5rem">Status</th><th style="text-align:left;padding:0.5rem">Date</th><th style="text-align:left;padding:0.5rem">Ref</th></tr></thead><tbody>';
+    if (!r.length) { el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#a0a0c0">No transactions yet.</p>'; return; }
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📋 Transactions</h3><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.5rem">Type</th><th style="text-align:left;padding:0.5rem">Amount</th><th style="text-align:left;padding:0.5rem">Method</th><th style="text-align:left;padding:0.5rem">Status</th><th style="text-align:left;padding:0.5rem">Date</th><th style="text-align:left;padding:0.5rem">Ref</th><th style="text-align:left;padding:0.5rem">Description</th></tr></thead><tbody>';
     r.forEach(t => {
       const c = t.status==='approved'?'#22c55e':t.status==='rejected'?'#ff3232':'#f59e0b';
-      html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)"><td style="padding:0.5rem;font-weight:600;color:${t.type==='deposit'?'#22c55e':'#f59e0b'}">${t.type}</td><td style="padding:0.5rem">$${Number(t.amount).toFixed(2)}</td><td style="padding:0.5rem;color:#a0a0c0">${t.payment_method||'-'}</td><td style="padding:0.5rem;color:${c}">${t.status}</td><td style="padding:0.5rem;color:#a0a0c0;font-size:0.8rem">${new Date(t.created_at).toLocaleDateString()}</td><td style="padding:0.5rem;font-size:0.75rem">${t.reference||''}</td></tr>`;
+      html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)"><td style="padding:0.5rem;font-weight:600;color:${t.type==='deposit'?'#22c55e':'#f59e0b'}">${t.type}</td><td style="padding:0.5rem">$${Number(t.amount).toFixed(2)}</td><td style="padding:0.5rem;color:#a0a0c0">${t.payment_method||'-'}</td><td style="padding:0.5rem;color:${c}">${t.status}</td><td style="padding:0.5rem;color:#a0a0c0;font-size:0.8rem">${new Date(t.created_at).toLocaleDateString()}</td><td style="padding:0.5rem;font-size:0.75rem">${t.reference||''}</td><td style="padding:0.5rem;font-size:0.75rem;color:#a0a0c0;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.description||''}</td></tr>`;
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#ff3232">Error loading</p>'; }
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#ff3232">Error</p>'; }
 };
 
 window.loadWalletData = async function() {
@@ -181,7 +270,7 @@ window.loadWalletData = async function() {
       <div><span style="color:#a0a0c0">Annual ROI:</span> <strong style="color:#22c55e">${w.roi}%</strong></div>
       <div><span style="color:#a0a0c0">Daily Rate:</span> <strong style="color:#f59e0b">${(w.roi/365).toFixed(4)}%</strong></div>
     </div>`;
-  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">💳 Wallet</h3><p style="color:#ff3232">Error loading wallet</p>'; }
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">💳 Wallet</h3><p style="color:#ff3232">Error</p>'; }
 };
 
 window.loadDashStats = async function() {
@@ -203,5 +292,6 @@ window.loadDashStats = async function() {
 function getStageROI(s){if(s==='Stage 4')return 70;if(s==='Stage 3')return 80;if(s==='Stage 2')return 90;return 100;}
 
 window.loadDashStats();
+window.updateInboxBadge();
 window.showSection('wallet');
 </script>
