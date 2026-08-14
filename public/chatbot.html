@@ -30,7 +30,7 @@ const kb = {
   deposit: '💰 To make a deposit:\n1. Go to Dashboard → Deposit\n2. Enter amount ($100 minimum)\n3. Choose payment method\n4. Submit and await admin approval\n\nAccepted: Bitcoin, Cash App, PayPal, Zelle, Wire Transfer, Western Union',
   withdraw: '💸 To withdraw:\n1. Go to Dashboard → Withdraw\n2. Enter amount and wallet address\n3. Admin will review and approve\n\nWithdrawals go to your preferred payment method.',
   bitcoin: '₿ Bitcoin Deposit:\n\nWallet: bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6\n\n1. Send BTC to the address above\n2. Go to Dashboard → Deposit\n3. Select Bitcoin as payment method\n4. Enter the USD equivalent amount\n5. Submit and await confirmation',
-  support: '📞 Contact Support:\n\n📧 Email: Elonmusk2207@gmail.com\n📱 Phone: +1 (262) 526-7600\n✈️ Telegram: @quantumspacex1\n\nOr type "ticket" to create a support ticket!',
+  support: '📞 Contact Support:\n\n📧 Email: quantumspacex1@gmail.com\n📱 Phone: +1 (262) 526-7600\n✈️ Telegram: @quantumspacex1\n\nOr type "ticket" to create a support ticket!',
   shop: '🛍️ Shop — Tesla & Optimus:\n\n🚗 Tesla Model S — $79,990\n🚙 Tesla Model Y — $49,990\n⚡ Tesla Model 3 — $42,990\n🏎️ Tesla Model X — $89,990\n🤖 Cybertruck — $69,990\n🦾 Optimus Bot — $25,000\n\nVisit the Shop page to order!',
   wallet: '💳 Your Wallet has 4 balances:\n\n💰 Deposit Balance — Your deposited funds\n📈 ROI Balance — Daily ROI earnings\n🎁 Bonus Balance — Admin bonuses\n🏆 Total ROI Earned — Cumulative ROI\n\nROI is deposited daily into your ROI wallet.'
 };
@@ -85,12 +85,12 @@ window.sendChat = function() {
           body: JSON.stringify({user_id: (currentUser && currentUser.id) || 0, subject, message})
         })).json();
         if (r.id) {
-          addBotMsg('✅ Support ticket #' + r.id + ' created!\n\nOur team will respond via email. You can also reach us directly:\n📧 Elonmusk2207@gmail.com\n📱 +1 (262) 526-7600');
+          addBotMsg('✅ Support ticket #' + r.id + ' created!\n\nOur team will respond via email. You can also reach us directly:\n📧 quantumspacex1@gmail.com\n📱 +1 (262) 526-7600');
         } else {
-          addBotMsg('❌ Failed to create ticket. Please contact support directly:\n📧 Elonmusk2207@gmail.com');
+          addBotMsg('❌ Failed to create ticket. Please contact support directly:\n📧 quantumspacex1@gmail.com');
         }
       } catch(e) {
-        addBotMsg('❌ Error creating ticket. Please email: Elonmusk2207@gmail.com');
+        addBotMsg('❌ Error creating ticket. Please email: quantumspacex1@gmail.com');
       }
     })();
     return;
