@@ -284,16 +284,18 @@ window.loadAdminPayments = async function() {
   const el = document.getElementById('adminContent');
   try {
     const methods = await (await fetch('/api/admin/payment-methods')).json();
-    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">💳 Payment Methods</h3>';
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">💳 Payment Methods</h3><p style="color:#a0a0c0;font-size:0.85rem;margin-bottom:1rem">Bitcoin has a direct wallet address. All other methods require you to provide payment details to users (via Edit Details or by messaging them after a deposit request).</p>';
     methods.forEach(m => {
+      const hasDetails = m.details && m.details.length > 0;
+      const methodNote = m.method === 'bitcoin' ? '<span style="color:#f7931a;font-size:0.75rem;margin-left:0.5rem">₿ Direct Wallet</span>' : (!hasDetails ? '<span style="color:#f59e0b;font-size:0.75rem;margin-left:0.5rem">📩 No details — provide to users manually</span>' : '');
       html += `<div class="glass" style="padding:1rem;margin-bottom:1rem">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem">
-          <div><strong style="color:#fff">${m.display_name}</strong> <span style="color:#555;font-size:0.8rem">(${m.method})</span></div>
+          <div><strong style="color:#fff">${m.display_name}</strong> <span style="color:#555;font-size:0.8rem">(${m.method})</span>${methodNote}</div>
           <div><button class="btn btn-outline btn-sm" onclick="window.togglePayment('${m.method}',${m.is_active?0:1})">${m.is_active?'🚫 Disable':'✅ Enable'}</button></div>
         </div>
         <div style="color:#a0a0c0;font-size:0.85rem">
           <strong>Details:</strong>
-          <pre style="background:rgba(0,0,0,0.3);padding:0.5rem;border-radius:8px;margin-top:0.3rem;font-size:0.8rem;color:#e0e0e0;white-space:pre-wrap">${JSON.stringify(m.details||[],null,2)}</pre>
+          <pre style="background:rgba(0,0,0,0.3);padding:0.5rem;border-radius:8px;margin-top:0.3rem;font-size:0.8rem;color:#e0e0e0;white-space:pre-wrap">${hasDetails ? JSON.stringify(m.details,null,2) : '(No details set — admin provides these to users upon request)'}</pre>
         </div>
         <div style="margin-top:0.8rem">
           <button class="btn btn-outline btn-sm" onclick="window.editPaymentDetails('${m.method}')">✏️ Edit Details</button>

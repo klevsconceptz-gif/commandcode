@@ -180,7 +180,11 @@ window.loadPaymentDetails = async function() {
       if (method && method.details && method.details.length) {
         div.innerHTML = '<h4 style="color:#f59e0b;margin-bottom:0.8rem">💳 Payment Details</h4>' +
           method.details.map(d => `<div class="glass" style="padding:0.8rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center"><div><span style="color:#a0a0c0;font-size:0.8rem">${d.label}</span><br><strong style="color:#fff;word-break:break-all">${d.value}</strong></div>${d.copyable ? `<button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText('${d.value}');showToast('Copied!','success')">Copy</button>` : ''}</div>`).join('');
-      } else { div.innerHTML = ''; }
+      } else if (method && method.method === 'bitcoin') {
+        div.innerHTML = '<h4 style="color:#f59e0b;margin-bottom:0.8rem">₿ Bitcoin Wallet</h4><div class="glass" style="padding:0.8rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center"><div><span style="color:#a0a0c0;font-size:0.8rem">Wallet Address</span><br><strong style="color:#f7931a;word-break:break-all">bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6</strong></div><button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText(\'bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6\');showToast(\'Copied!\',\'success\')">Copy</button></div>';
+      } else {
+        div.innerHTML = '<div class="glass" style="padding:1rem;margin-top:0.5rem;border-left:3px solid #f59e0b"><p style="color:#f59e0b;font-weight:600;margin:0 0 0.3rem 0">📩 Admin Will Provide Payment Details</p><p style="color:#a0a0c0;font-size:0.85rem;margin:0">Submit your deposit request and admin will send you the payment instructions via inbox message. You\'ll be notified once details are available.</p></div>';
+      }
     });
     sel.dispatchEvent(new Event('change'));
   } catch(e) {}

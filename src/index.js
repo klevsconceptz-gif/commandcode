@@ -219,10 +219,24 @@ app.post('/api/user/deposit', authMiddleware, async c => {
   const payment_method = data.payment_method;
   const u = c.get('user');
   if (!amount || isNaN(amount) || amount < 100 || amount > 1000000) return c.json({error:'Amount must be $100-$1,000,000'}, 400);
-  const methods = await c.env.DB.prepare("SELECT method FROM payment_settings WHERE method=? AND is_active=1").bind(payment_method).first();
-  if (!methods) return c.json({error:'Invalid payment method'}, 400);
+  const methodRow = await c.env.DB.prepare("SELECT method, details FROM payment_settings WHERE method=? AND is_active=1").bind(payment_method).first();
+  if (!methodRow) return c.json({error:'Invalid payment method'}, 400);
   const ref = genRef();
   const r = await c.env.DB.prepare('INSERT INTO transactions (user_id,type,amount,status,payment_method,reference,description) VALUES (?,?,?,?,?,?,?)').bind(u.id,'deposit',amount,'pending',payment_method,ref,'Deposit request').run();
+  // For non-Bitcoin methods with no details, send inbox message telling user admin will provide payment info
+  if (payment_method !== 'bitcoin') {
+    let details = [];
+    try { details = JSON.parse(methodRow.details || '[]'); } catch(e) {}
+    if (!details.length) {
+      try {
+        await c.env.DB.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin,reference) VALUES (?,?,?,?,?,?)').bind(u.id,
+          '📩 Payment Details Pending',
+          'Your deposit of $' + amount.toFixed(2) + ' via ' + payment_method + ' has been submitted (Ref: ' + ref + '). Admin will provide payment details shortly. Please check back or wait for a follow-up message.',
+          'deposit', 1, ref
+        ).run();
+      } catch(e) {}
+    }
+  }
   return c.json({id:r.meta.last_row_id, reference:ref, message:'Deposit submitted — await admin approval'});
 });
 

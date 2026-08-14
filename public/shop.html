@@ -75,6 +75,18 @@
 let orderProduct = null;
 let orderPrice = 0;
 
+window.updateOrderPaymentInfo = function() {
+  const sel = document.getElementById('orderPayMethod');
+  const div = document.getElementById('orderPayDetails');
+  if (!sel || !div) return;
+  const method = sel.value;
+  if (method === 'bitcoin') {
+    div.innerHTML = '<div class="glass" style="padding:0.8rem;margin-bottom:0.8rem;border-left:3px solid #f7931a"><p style="color:#f7931a;font-weight:600;margin:0 0 0.3rem 0">₿ Bitcoin Wallet Address</p><p style="color:#fff;word-break:break-all;margin:0;font-family:monospace;font-size:0.85rem">bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6</p><button class="btn btn-outline btn-sm" style="margin-top:0.5rem" onclick="navigator.clipboard.writeText(\'bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6\');showToast(\'Copied!\',\'success\')">Copy</button></div>';
+  } else {
+    div.innerHTML = '<div class="glass" style="padding:0.8rem;margin-bottom:0.8rem;border-left:3px solid #f59e0b"><p style="color:#f59e0b;font-weight:600;margin:0 0 0.3rem 0">📩 Admin Will Provide Payment Details</p><p style="color:#a0a0c0;font-size:0.85rem;margin:0">Submit your order and admin will send you payment instructions via inbox message.</p></div>';
+  }
+};
+
 window.startOrder = function(name, price) {
   if (!token) { showLogin(); return; }
   orderProduct = name;
@@ -84,7 +96,7 @@ window.startOrder = function(name, price) {
     <h3 style="color:#00d4ff;margin-bottom:1rem">🛍️ Order: ${name}</h3>
     <p style="font-size:1.5rem;font-weight:700;color:#00d4ff;margin-bottom:1.5rem">$${price.toLocaleString()}</p>
     <div class="form-group"><label>Payment Method</label>
-      <select id="orderPayMethod" style="width:100%;padding:0.7rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff">
+      <select id="orderPayMethod" onchange="window.updateOrderPaymentInfo()" style="width:100%;padding:0.7rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff">
         <option value="bitcoin">Bitcoin (BTC)</option>
         <option value="cashapp">Cash App</option>
         <option value="paypal">PayPal</option>
@@ -93,10 +105,11 @@ window.startOrder = function(name, price) {
         <option value="western-union">Western Union</option>
       </select>
     </div>
+    <div id="orderPayDetails"></div>
     <div class="form-group"><label>Shipping Address</label><textarea id="orderAddr" rows="3" placeholder="Full shipping address" style="width:100%;padding:0.7rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;resize:vertical"></textarea></div>
     <button class="btn btn-primary" style="width:100%;margin-bottom:0.5rem" onclick="window.submitOrder()">Submit Order</button>
-    <button class="btn btn-outline" style="width:100%" onclick="document.getElementById('orderModal').style.display='none'">Cancel</button>
-    <p style="color:#a0a0c0;font-size:0.8rem;margin-top:1rem;text-align:center">💰 A deposit request for $${price.toLocaleString()} will be created. Admin will confirm payment details.</p>`;
+    <button class="btn btn-outline" style="width:100%" onclick="document.getElementById('orderModal').style.display='none'">Cancel</button>`;
+  window.updateOrderPaymentInfo();
 };
 
 window.submitOrder = async function() {
