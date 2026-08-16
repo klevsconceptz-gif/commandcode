@@ -3,12 +3,12 @@
 <div id="dashStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));gap:0.8rem;margin-bottom:2rem"></div>
 
 <div class="tab-strip">
-<button class="btn btn-primary btn-sm" onclick="window.showSection('wallet')">💳 Wallet</button>
-<button class="btn btn-outline btn-sm" onclick="window.showSection('inbox')">📨 Inbox</button>
-<button class="btn btn-outline btn-sm" onclick="window.showSection('deposit')">💰 Deposit</button>
-<button class="btn btn-outline btn-sm" onclick="window.showSection('withdraw')">💸 Withdraw</button>
-<button class="btn btn-outline btn-sm" onclick="window.showSection('transactions')">📋 Transactions</button>
-<button class="btn btn-outline btn-sm" onclick="window.showSection('change-password')">🔒 Password</button>
+<button class="btn btn-primary btn-sm" onclick="window.showSection('wallet')">&#x1F4B3; Wallet</button>
+<button class="btn btn-outline btn-sm" onclick="window.showSection('inbox')">&#x1F4E8; Inbox</button>
+<button class="btn btn-outline btn-sm" onclick="window.showSection('deposit')">&#x1F4B0; Deposit</button>
+<button class="btn btn-outline btn-sm" onclick="window.showSection('withdraw')">&#x1F4B8; Withdraw</button>
+<button class="btn btn-outline btn-sm" onclick="window.showSection('transactions')">&#x1F4CB; Transactions</button>
+<button class="btn btn-outline btn-sm" onclick="window.showSection('change-password')">&#x1F512; Password</button>
 </div>
 
 <div id="dashContent" class="glass" style="padding:clamp(1rem,3vw,2rem)"></div>
@@ -17,6 +17,7 @@
 <script>
 // Inbox unread badge
 let _unreadCount = 0;
+let _allMessages = [];
 window.updateInboxBadge = async function() {
   try {
     const r = await (await fetch('/api/user/messages/unread-count')).json();
@@ -37,7 +38,7 @@ window.showSection = function(section) {
   } else if (section === 'inbox') {
     window.loadInbox();
   } else if (section === 'deposit') {
-    el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">💰 Make Deposit</h3>
+    el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">&#x1F4B0; Make Deposit</h3>
     <div style="max-width:500px">
       <div class="form-group"><label>Amount ($100 - $1,000,000)</label><input id="depAmt" type="number" min="100" step="0.01" placeholder="Enter amount"></div>
       <div class="form-group"><label>Payment Method</label>
@@ -56,7 +57,7 @@ window.showSection = function(section) {
     <div id="paymentDetails" style="margin-top:1.5rem"></div>`;
     window.loadPaymentDetails();
   } else if (section === 'withdraw') {
-    el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">💸 Request Withdrawal</h3>
+    el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">&#x1F4B8; Request Withdrawal</h3>
     <div style="max-width:500px">
       <div class="form-group"><label>Withdrawal Amount</label><input id="wdAmt" type="number" step="0.01" placeholder="Enter amount"></div>
       <div class="form-group"><label>Withdraw From</label>
@@ -82,7 +83,7 @@ window.showSection = function(section) {
   } else if (section === 'transactions') {
     window.loadTransactions();
   } else if (section === 'change-password') {
-    el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">🔒 Change Password</h3>
+    el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">&#x1F512; Change Password</h3>
     <div style="max-width:400px">
       <div class="form-group"><label>Current Password</label><input id="cpOld" type="password" placeholder="Current password"></div>
       <div class="form-group"><label>New Password</label><input id="cpNew" type="password" placeholder="Min 8 chars"></div>
@@ -92,50 +93,204 @@ window.showSection = function(section) {
   }
 };
 
-// === INBOX ===
+// === INBOX — Two-way Chat-style Messaging ===
 window.loadInbox = async function() {
   const el = document.getElementById('dashContent');
-  el.innerHTML = '<h3 style="color:#00d4ff">📨 Inbox</h3><p style="color:#a0a0c0">Loading...</p>';
+  el.innerHTML = '<h3 style="color:#00d4ff">&#x1F4E8; Inbox</h3><p style="color:#a0a0c0">Loading...</p>';
   try {
     const msgs = await (await fetch('/api/user/messages')).json();
+    _allMessages = msgs;
     if (!msgs.length) {
-      el.innerHTML = '<h3 style="color:#00d4ff;margin-bottom:1rem">📨 Inbox</h3><div class="glass" style="padding:2rem;text-align:center"><p style="color:#a0a0c0;font-size:1.1rem">📭 No messages yet</p><p style="color:#555;font-size:0.85rem">Admin notifications about your account will appear here</p></div>';
+      el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1rem">&#x1F4E8; Inbox</h3>
+      <div class="glass" style="padding:2rem;text-align:center">
+        <p style="color:#a0a0c0;font-size:1.1rem">&#x1F4ED; No messages yet</p>
+        <p style="color:#555;font-size:0.85rem;margin-bottom:1.5rem">Start a conversation with admin or wait for notifications</p>
+        <button class="btn btn-primary" onclick="window.composeMessage()">&#x2709;&#xFE0F; New Message to Admin</button>
+      </div>`;
       return;
     }
-    let html = `<h3 style="color:#00d4ff;margin-bottom:1rem">📨 Inbox <span style="color:#f59e0b;font-size:0.85rem">(${_unreadCount} unread)</span></h3>
-    <div style="margin-bottom:1rem"><button class="btn btn-outline btn-sm" onclick="window.markAllRead()">✓ Mark All Read</button></div>`;
-    msgs.forEach(m => {
-      const typeColors = {wallet:'#00d4ff',deposit:'#22c55e',withdrawal:'#f59e0b',stock:'#e879f9',order:'#06b6d4',info:'#a0a0c0',admin_adjust:'#f59e0b'};
-      const typeIcons = {wallet:'💰',deposit:'📥',withdrawal:'📤',stock:'📊',order:'🛍',info:'ℹ️',admin_adjust:'⚙️'};
-      const tc = typeColors[m.type] || '#a0a0c0';
-      const ti = typeIcons[m.type] || '📨';
-      const unreadStyle = m.is_read ? '' : 'border-left:3px solid #00d4ff;background:rgba(0,212,255,0.04);';
-      const dateStr = m.created_at ? new Date(m.created_at).toLocaleString() : '';
-      html += `<div class="glass" style="padding:1rem;margin-bottom:0.6rem;${unreadStyle}cursor:pointer" onclick="window.readMessage(${m.id})">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div style="flex:1">
-            <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem">
-              <span style="font-size:1.1rem">${ti}</span>
-              <strong style="color:${m.is_read ? '#e0e0e0' : '#fff'};font-size:0.95rem">${m.title}</strong>
-              ${m.is_read ? '' : '<span style="background:#00d4ff;color:#000;font-size:0.65rem;padding:1px 6px;border-radius:10px;font-weight:700">NEW</span>'}
-            </div>
-            <p style="color:#a0a0c0;font-size:0.85rem;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.body.split('\n')[0]}</p>
-          </div>
-          <div style="text-align:right;min-width:100px">
-            <span style="color:${tc};font-size:0.7rem;font-weight:600">${m.type.toUpperCase()}</span><br>
-            <span style="color:#555;font-size:0.75rem">${dateStr}</span>
-          </div>
-        </div>
+
+    // Separate chat messages from system notifications
+    const chatMsgs = msgs.filter(m => m.type === 'chat');
+    const notifMsgs = msgs.filter(m => m.type !== 'chat');
+    const unreadChat = chatMsgs.filter(m => !m.is_read).length;
+    const unreadNotif = notifMsgs.filter(m => !m.is_read).length;
+
+    let html = `<h3 style="color:#00d4ff;margin-bottom:1rem">&#x1F4E8; Inbox <span style="color:#f59e0b;font-size:0.85rem">(${_unreadCount} unread)</span></h3>
+    <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="window.composeMessage()">&#x2709;&#xFE0F; New Message</button>
+      <button class="btn btn-outline btn-sm" onclick="window.markAllRead()">&#x2713; Mark All Read</button>
+    </div>`;
+
+    // Chat conversation section
+    if (chatMsgs.length) {
+      html += `<div style="margin-bottom:2rem">
+        <h4 style="color:#e0e0e0;margin:0 0 0.8rem;font-size:1rem">&#x1F4AC; Conversation with Admin ${unreadChat ? '<span style="background:#00d4ff;color:#000;font-size:0.65rem;padding:2px 8px;border-radius:10px;font-weight:700;margin-left:0.5rem">'+unreadChat+' new</span>' : ''}</h4>`;
+      // Show last 3 chat messages as preview, then link to full thread
+      const preview = chatMsgs.slice(0, 3);
+      preview.forEach(m => {
+        const isMine = m.from_admin === 0;
+        const align = isMine ? 'margin-left:auto;' : 'margin-right:auto;';
+        const bubbleBg = isMine ? 'background:rgba(0,212,255,0.15);border:1px solid rgba(0,212,255,0.3);' : 'background:rgba(123,47,247,0.15);border:1px solid rgba(123,47,247,0.3);';
+        const senderLabel = isMine ? '<span style="color:#00d4ff;font-size:0.7rem;font-weight:600">You</span>' : '<span style="color:#7b2ff7;font-size:0.7rem;font-weight:600">Admin</span>';
+        const dateStr = m.created_at ? new Date(m.created_at).toLocaleString() : '';
+        html += `<div style="max-width:80%;${align}${bubbleBg}padding:0.8rem 1rem;border-radius:12px;margin-bottom:0.5rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem">${senderLabel}<span style="color:#555;font-size:0.65rem">${dateStr}</span></div>
+          <div style="color:#e0e0e0;font-size:0.9rem;word-break:break-word">${m.body}</div>
+        </div>`;
+      });
+      if (chatMsgs.length > 3) {
+        html += `<p style="color:#a0a0c0;font-size:0.8rem;margin:0.5rem 0;text-align:center">...and ${chatMsgs.length - 3} more messages</p>`;
+      }
+      html += `<div style="text-align:center;margin-top:0.8rem"><button class="btn btn-outline btn-sm" onclick="window.viewChatThread()">&#x1F4AC; View Full Conversation</button></div>`;
+      html += '</div>';
+    } else {
+      html += `<div style="margin-bottom:2rem">
+        <h4 style="color:#e0e0e0;margin:0 0 0.8rem;font-size:1rem">&#x1F4AC; Conversation with Admin</h4>
+        <p style="color:#555;font-size:0.85rem">No conversation yet. Send a message to start!</p>
       </div>`;
-    });
+    }
+
+    // System notifications section
+    if (notifMsgs.length) {
+      html += `<h4 style="color:#e0e0e0;margin:0 0 0.8rem;font-size:1rem">&#x1F514; Notifications ${unreadNotif ? '<span style="background:#f59e0b;color:#000;font-size:0.65rem;padding:2px 8px;border-radius:10px;font-weight:700;margin-left:0.5rem">'+unreadNotif+' new</span>' : ''}</h4>`;
+      notifMsgs.forEach(m => {
+        const typeColors = {wallet:'#00d4ff',deposit:'#22c55e',withdrawal:'#f59e0b',stock:'#e879f9',order:'#06b6d4',info:'#a0a0c0',admin_adjust:'#f59e0b'};
+        const typeIcons = {wallet:'&#x1F4B0;',deposit:'&#x1F4E5;',withdrawal:'&#x1F4E4;',stock:'&#x1F4CA;',order:'&#x1F6D2;',info:'&#x2139;&#xFE0F;',admin_adjust:'&#x2699;&#xFE0F;'};
+        const tc = typeColors[m.type] || '#a0a0c0';
+        const ti = typeIcons[m.type] || '&#x1F4E8;';
+        const unreadStyle = m.is_read ? '' : 'border-left:3px solid #00d4ff;background:rgba(0,212,255,0.04);';
+        const dateStr = m.created_at ? new Date(m.created_at).toLocaleString() : '';
+        html += `<div class="glass" style="padding:0.8rem;margin-bottom:0.5rem;${unreadStyle}cursor:pointer" onclick="window.readMessage(${m.id})">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.2rem">
+                <span style="font-size:0.9rem">${ti}</span>
+                <strong style="color:${m.is_read ? '#e0e0e0' : '#fff'};font-size:0.9rem">${m.title}</strong>
+                ${m.is_read ? '' : '<span style="background:#00d4ff;color:#000;font-size:0.6rem;padding:1px 5px;border-radius:10px;font-weight:700">NEW</span>'}
+              </div>
+              <p style="color:#a0a0c0;font-size:0.8rem;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.body.split('\n')[0]}</p>
+            </div>
+            <div style="text-align:right;min-width:80px">
+              <span style="color:${tc};font-size:0.65rem;font-weight:600">${m.type.toUpperCase()}</span><br>
+              <span style="color:#555;font-size:0.7rem">${dateStr}</span>
+            </div>
+          </div>
+        </div>`;
+      });
+    }
+
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📨 Inbox</h3><p style="color:#ff3232">Error loading</p>'; }
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">&#x1F4E8; Inbox</h3><p style="color:#ff3232">Error loading</p>'; }
 };
 
+// View full chat thread (all chat-type messages in chronological order)
+window.viewChatThread = async function() {
+  const el = document.getElementById('dashContent');
+  try {
+    const msgs = await (await fetch('/api/user/messages')).json();
+    const chatMsgs = msgs.filter(m => m.type === 'chat').reverse(); // chronological order
+
+    let html = `<div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
+      <button class="btn btn-outline btn-sm" onclick="window.loadInbox()">&#x2190; Back to Inbox</button>
+      <h3 style="color:#00d4ff;margin:0">&#x1F4AC; Conversation with Admin</h3>
+      <span></span>
+    </div>`;
+
+    // Chat thread area
+    html += '<div id="chatThread" style="max-height:60vh;overflow-y:auto;padding:1rem;margin-bottom:1rem;display:flex;flex-direction:column;gap:0.5rem">';
+    if (!chatMsgs.length) {
+      html += '<p style="color:#555;text-align:center">No messages yet. Start the conversation!</p>';
+    }
+    chatMsgs.forEach(m => {
+      const isMine = m.from_admin === 0;
+      const align = isMine ? 'align-self:flex-end;' : 'align-self:flex-start;';
+      const bubbleBg = isMine ? 'background:rgba(0,212,255,0.15);border:1px solid rgba(0,212,255,0.3);' : 'background:rgba(123,47,247,0.15);border:1px solid rgba(123,47,247,0.3);';
+      const senderLabel = isMine ? '<span style="color:#00d4ff;font-weight:600">You</span>' : '<span style="color:#7b2ff7;font-weight:600">&#x1F464; Admin</span>';
+      const dateStr = m.created_at ? new Date(m.created_at).toLocaleString() : '';
+      html += `<div style="max-width:85%;${align}${bubbleBg}padding:0.8rem 1rem;border-radius:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;font-size:0.75rem">${senderLabel}<span style="color:#555">${dateStr}</span></div>
+        <div style="color:#fff;font-size:0.9rem;font-weight:600;margin-bottom:0.3rem">${m.title}</div>
+        <div style="color:#e0e0e0;font-size:0.9rem;line-height:1.5;word-break:break-word;white-space:pre-wrap">${m.body}</div>
+      </div>`;
+    });
+    html += '</div>';
+
+    // Reply box
+    html += `<div class="glass" style="padding:1rem;border-top:2px solid rgba(0,212,255,0.3)">
+      <div class="form-group" style="margin-bottom:0.5rem"><label style="color:#a0a0c0;font-size:0.8rem">Subject</label><input id="chatReplyTitle" placeholder="Quick reply..." style="width:100%;padding:0.5rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:0.9rem"></div>
+      <div style="display:flex;gap:0.5rem;align-items:flex-end">
+        <textarea id="chatReplyBody" rows="2" placeholder="Type your message..." style="flex:1;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:0.9rem;resize:vertical;font-family:inherit"></textarea>
+        <button class="btn btn-primary" onclick="window.sendChatReply()" style="white-space:nowrap">&#x1F4E4; Send</button>
+      </div>
+    </div>`;
+
+    el.innerHTML = html;
+    // Scroll to bottom
+    const thread = document.getElementById('chatThread');
+    if (thread) thread.scrollTop = thread.scrollHeight;
+    // Mark chat messages as read
+    chatMsgs.filter(m => !m.is_read).forEach(m => fetch('/api/user/messages/'+m.id+'/read', {method:'POST'}));
+    window.updateInboxBadge();
+  } catch(e) { showToast('Error loading thread', 'error'); }
+};
+
+// Send reply in chat thread
+window.sendChatReply = async function() {
+  const title = document.getElementById('chatReplyTitle').value.trim();
+  const body = document.getElementById('chatReplyBody').value.trim();
+  if (!body) return showToast('Type a message first', 'error');
+  try {
+    const r = await (await fetch('/api/user/messages', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title: title || 'Re: Message', body})
+    })).json();
+    if (r.error) return showToast(r.error, 'error');
+    showToast('Message sent!', 'success');
+    // Clear inputs
+    document.getElementById('chatReplyTitle').value = '';
+    document.getElementById('chatReplyBody').value = '';
+    // Reload thread
+    window.viewChatThread();
+  } catch(e) { showToast('Failed to send', 'error'); }
+};
+
+// Compose new message to admin
+window.composeMessage = function() {
+  const el = document.getElementById('dashContent');
+  el.innerHTML = `<div style="margin-bottom:1rem"><button class="btn btn-outline btn-sm" onclick="window.loadInbox()">&#x2190; Back to Inbox</button></div>
+  <h3 style="color:#00d4ff;margin-bottom:1.5rem">&#x2709;&#xFE0F; New Message to Admin</h3>
+  <div style="max-width:600px">
+    <div class="form-group"><label>Subject</label><input id="compTitle" placeholder="e.g. Deposit inquiry, Payment issue..." style="width:100%;padding:0.7rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:0.95rem"></div>
+    <div class="form-group"><label>Message</label><textarea id="compBody" rows="6" placeholder="Describe your question or issue in detail..." style="width:100%;padding:0.7rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:0.95rem;resize:vertical;font-family:inherit"></textarea></div>
+    <div style="display:flex;gap:0.5rem">
+      <button class="btn btn-primary" onclick="window.sendCompose()">&#x1F4E4; Send Message</button>
+      <button class="btn btn-outline" onclick="window.loadInbox()">Cancel</button>
+    </div>
+  </div>`;
+};
+
+window.sendCompose = async function() {
+  const title = document.getElementById('compTitle').value.trim();
+  const body = document.getElementById('compBody').value.trim();
+  if (!title || !body) return showToast('Subject and message required', 'error');
+  try {
+    const r = await (await fetch('/api/user/messages', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title, body})
+    })).json();
+    if (r.error) return showToast(r.error, 'error');
+    showToast('Message sent to admin!', 'success');
+    window.viewChatThread();
+  } catch(e) { showToast('Failed to send', 'error'); }
+};
+
+// Read a notification message (non-chat)
 window.readMessage = async function(id) {
   try {
     await fetch('/api/user/messages/'+id+'/read', {method:'POST'});
-    // Now show the full message in a modal-like view
     const msgs = await (await fetch('/api/user/messages')).json();
     const m = msgs.find(x => x.id === id);
     if (!m) return window.loadInbox();
@@ -143,17 +298,56 @@ window.readMessage = async function(id) {
     const typeColors = {wallet:'#00d4ff',deposit:'#22c55e',withdrawal:'#f59e0b',stock:'#e879f9',order:'#06b6d4',info:'#a0a0c0',admin_adjust:'#f59e0b'};
     const tc = typeColors[m.type] || '#a0a0c0';
     const dateStr = m.created_at ? new Date(m.created_at).toLocaleString() : '';
-    el.innerHTML = `<div style="margin-bottom:1rem"><button class="btn btn-outline btn-sm" onclick="window.loadInbox()">← Back to Inbox</button></div>
+    const isFromAdmin = m.from_admin === 1;
+    el.innerHTML = `<div style="margin-bottom:1rem"><button class="btn btn-outline btn-sm" onclick="window.loadInbox()">&#x2190; Back to Inbox</button></div>
     <div class="glass" style="padding:1.5rem">
-      <h3 style="color:${tc};margin:0 0 0.5rem">${m.title}</h3>
-      <p style="color:#555;font-size:0.8rem;margin:0 0 1rem">${m.type.toUpperCase()} · ${dateStr}</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+        <h3 style="color:${tc};margin:0">${m.title}</h3>
+        ${isFromAdmin ? '<span style="color:#7b2ff7;font-size:0.75rem;font-weight:600">&#x1F464; From Admin</span>' : '<span style="color:#00d4ff;font-size:0.75rem;font-weight:600">You</span>'}
+      </div>
+      <p style="color:#555;font-size:0.8rem;margin:0 0 1rem">${m.type.toUpperCase()} &middot; ${dateStr}</p>
       <div style="color:#e0e0e0;font-size:0.95rem;line-height:1.6;white-space:pre-wrap">${m.body}</div>
       ${m.reference ? `<p style="color:#555;font-size:0.8rem;margin-top:1rem">Ref: ${m.reference}</p>` : ''}
-      <div style="margin-top:1.5rem"><button class="btn btn-danger btn-sm" onclick="window.deleteMessage(${m.id})">🗑 Delete</button></div>
+      <div style="margin-top:1.5rem;display:flex;gap:0.5rem">
+        ${isFromAdmin ? '<button class="btn btn-primary btn-sm" onclick="window.replyToMessage('+m.id+',\''+m.title.replace(/'/g,"\\'")+'\')">&#x21A9;&#xFE0F; Reply</button>' : ''}
+        <button class="btn btn-danger btn-sm" onclick="window.deleteMessage(${m.id})">&#x1F5D1; Delete</button>
+      </div>
     </div>`;
     _unreadCount = Math.max(0, _unreadCount - 1);
     window.updateInboxBadge();
   } catch(e) { showToast('Error', 'error'); }
+};
+
+// Reply to a specific notification message
+window.replyToMessage = function(parentId, originalTitle) {
+  const replyTitle = originalTitle.startsWith('Re:') ? originalTitle : 'Re: ' + originalTitle;
+  const el = document.getElementById('dashContent');
+  el.innerHTML = `<div style="margin-bottom:1rem"><button class="btn btn-outline btn-sm" onclick="window.loadInbox()">&#x2190; Back to Inbox</button></div>
+  <h3 style="color:#00d4ff;margin-bottom:1.5rem">&#x21A9;&#xFE0F; Reply to Admin</h3>
+  <div style="max-width:600px">
+    <div class="form-group"><label>Subject</label><input id="replyTitle" value="${replyTitle}" style="width:100%;padding:0.7rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:0.95rem"></div>
+    <div class="form-group"><label>Message</label><textarea id="replyBody" rows="5" placeholder="Type your reply..." style="width:100%;padding:0.7rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:0.95rem;resize:vertical;font-family:inherit"></textarea></div>
+    <div style="display:flex;gap:0.5rem">
+      <button class="btn btn-primary" onclick="window.sendReply(${parentId})">&#x1F4E4; Send Reply</button>
+      <button class="btn btn-outline" onclick="window.loadInbox()">Cancel</button>
+    </div>
+  </div>`;
+};
+
+window.sendReply = async function(parentId) {
+  const title = document.getElementById('replyTitle').value.trim();
+  const body = document.getElementById('replyBody').value.trim();
+  if (!title || !body) return showToast('Subject and message required', 'error');
+  try {
+    const r = await (await fetch('/api/user/messages', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title, body, parent_id: parentId})
+    })).json();
+    if (r.error) return showToast(r.error, 'error');
+    showToast('Reply sent!', 'success');
+    window.viewChatThread();
+  } catch(e) { showToast('Failed to send', 'error'); }
 };
 
 window.deleteMessage = async function(id) {
@@ -178,12 +372,12 @@ window.loadPaymentDetails = async function() {
       const method = methods.find(m => m.method === this.value);
       const div = document.getElementById('paymentDetails');
       if (method && method.details && method.details.length) {
-        div.innerHTML = '<h4 style="color:#f59e0b;margin-bottom:0.8rem">💳 Payment Details</h4>' +
+        div.innerHTML = '<h4 style="color:#f59e0b;margin-bottom:0.8rem">&#x1F4B3; Payment Details</h4>' +
           method.details.map(d => `<div class="glass" style="padding:0.8rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center"><div><span style="color:#a0a0c0;font-size:0.8rem">${d.label}</span><br><strong style="color:#fff;word-break:break-all">${d.value}</strong></div>${d.copyable ? `<button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText('${d.value}');showToast('Copied!','success')">Copy</button>` : ''}</div>`).join('');
       } else if (method && method.method === 'bitcoin') {
-        div.innerHTML = '<h4 style="color:#f59e0b;margin-bottom:0.8rem">₿ Bitcoin Wallet</h4><div class="glass" style="padding:0.8rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center"><div><span style="color:#a0a0c0;font-size:0.8rem">Wallet Address</span><br><strong style="color:#f7931a;word-break:break-all">bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6</strong></div><button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText(\'bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6\');showToast(\'Copied!\',\'success\')">Copy</button></div>';
+        div.innerHTML = '<h4 style="color:#f59e0b;margin-bottom:0.8rem">&#x20BF; Bitcoin Wallet</h4><div class="glass" style="padding:0.8rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center"><div><span style="color:#a0a0c0;font-size:0.8rem">Wallet Address</span><br><strong style="color:#f7931a;word-break:break-all">bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6</strong></div><button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText(\'bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6\');showToast(\'Copied!\',\'success\')">Copy</button></div>';
       } else {
-        div.innerHTML = '<div class="glass" style="padding:1rem;margin-top:0.5rem;border-left:3px solid #f59e0b"><p style="color:#f59e0b;font-weight:600;margin:0 0 0.3rem 0">📩 Admin Will Provide Payment Details</p><p style="color:#a0a0c0;font-size:0.85rem;margin:0">Submit your deposit request and admin will send you the payment instructions via inbox message. You\'ll be notified once details are available.</p></div>';
+        div.innerHTML = '<div class="glass" style="padding:1rem;margin-top:0.5rem;border-left:3px solid #f59e0b"><p style="color:#f59e0b;font-weight:600;margin:0 0 0.3rem 0">&#x1F4E9; Admin Will Provide Payment Details</p><p style="color:#a0a0c0;font-size:0.85rem;margin:0">Submit your deposit request and admin will send you the payment instructions via inbox message. You\'ll be notified once details are available.</p></div>';
       }
     });
     sel.dispatchEvent(new Event('change'));
@@ -197,7 +391,7 @@ window.handleDeposit = async function() {
   try {
     const r = await (await fetch('/api/user/deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({amount:amt, payment_method:method})})).json();
     if (r.error) return document.getElementById('depResult').innerHTML = '<p style="color:#ff3232">' + r.error + '</p>';
-    document.getElementById('depResult').innerHTML = '<p style="color:#22c55e">✅ Deposit submitted! Reference: <strong>' + r.reference + '</strong></p><p style="color:#a0a0c0;font-size:0.85rem;margin-top:0.5rem">Awaiting admin approval. You\'ll be notified once confirmed.</p>';
+    document.getElementById('depResult').innerHTML = '<p style="color:#22c55e">&#x2705; Deposit submitted! Reference: <strong>' + r.reference + '</strong></p><p style="color:#a0a0c0;font-size:0.85rem;margin-top:0.5rem">Awaiting admin approval. You\'ll be notified once confirmed.</p>';
     window.loadDashStats();
   } catch(e) { showToast('Deposit failed', 'error'); }
 };
@@ -211,7 +405,7 @@ window.handleWithdraw = async function() {
   try {
     const r = await (await fetch('/api/user/withdraw', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({amount:amt, payment_method:method, wallet_address:addr})})).json();
     if (r.error) return document.getElementById('wdResult').innerHTML = '<p style="color:#ff3232">' + r.error + '</p>';
-    document.getElementById('wdResult').innerHTML = '<p style="color:#22c55e">✅ Withdrawal submitted! Reference: <strong>' + r.reference + '</strong></p><p style="color:#a0a0c0;font-size:0.85rem;margin-top:0.5rem">Admin will review and send funds to your address.</p>';
+    document.getElementById('wdResult').innerHTML = '<p style="color:#22c55e">&#x2705; Withdrawal submitted! Reference: <strong>' + r.reference + '</strong></p><p style="color:#a0a0c0;font-size:0.85rem;margin-top:0.5rem">Admin will review and send funds to your address.</p>';
   } catch(e) { showToast('Withdrawal failed', 'error'); }
 };
 
@@ -223,48 +417,48 @@ window.handleChangePassword = async function() {
   try {
     const r = await (await fetch('/api/auth/change-password', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({current_password:oldPw, new_password:newPw})})).json();
     if (r.error) return document.getElementById('cpResult').innerHTML = '<p style="color:#ff3232">' + r.error + '</p>';
-    document.getElementById('cpResult').innerHTML = '<p style="color:#22c55e">✅ Password changed successfully!</p>';
+    document.getElementById('cpResult').innerHTML = '<p style="color:#22c55e">&#x2705; Password changed successfully!</p>';
   } catch(e) { showToast('Failed', 'error'); }
 };
 
 window.loadTransactions = async function() {
   const el = document.getElementById('dashContent');
-  el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#a0a0c0">Loading...</p>';
+  el.innerHTML = '<h3 style="color:#00d4ff">&#x1F4CB; Transactions</h3><p style="color:#a0a0c0">Loading...</p>';
   try {
     const r = await (await fetch('/api/user/transactions')).json();
-    if (!r.length) { el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#a0a0c0">No transactions yet.</p>'; return; }
-    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">📋 Transactions</h3><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.5rem">Type</th><th style="text-align:left;padding:0.5rem">Amount</th><th style="text-align:left;padding:0.5rem">Method</th><th style="text-align:left;padding:0.5rem">Status</th><th style="text-align:left;padding:0.5rem">Date</th><th style="text-align:left;padding:0.5rem">Ref</th><th style="text-align:left;padding:0.5rem">Description</th></tr></thead><tbody>';
+    if (!r.length) { el.innerHTML = '<h3 style="color:#00d4ff">&#x1F4CB; Transactions</h3><p style="color:#a0a0c0">No transactions yet.</p>'; return; }
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1rem">&#x1F4CB; Transactions</h3><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem"><thead><tr style="color:#a0a0c0"><th style="text-align:left;padding:0.5rem">Type</th><th style="text-align:left;padding:0.5rem">Amount</th><th style="text-align:left;padding:0.5rem">Method</th><th style="text-align:left;padding:0.5rem">Status</th><th style="text-align:left;padding:0.5rem">Date</th><th style="text-align:left;padding:0.5rem">Ref</th><th style="text-align:left;padding:0.5rem">Description</th></tr></thead><tbody>';
     r.forEach(t => {
       const c = t.status==='approved'?'#22c55e':t.status==='rejected'?'#ff3232':'#f59e0b';
       html += `<tr style="border-top:1px solid rgba(255,255,255,0.05)"><td style="padding:0.5rem;font-weight:600;color:${t.type==='deposit'?'#22c55e':'#f59e0b'}">${t.type}</td><td style="padding:0.5rem">$${Number(t.amount).toFixed(2)}</td><td style="padding:0.5rem;color:#a0a0c0">${t.payment_method||'-'}</td><td style="padding:0.5rem;color:${c}">${t.status}</td><td style="padding:0.5rem;color:#a0a0c0;font-size:0.8rem">${new Date(t.created_at).toLocaleDateString()}</td><td style="padding:0.5rem;font-size:0.75rem">${t.reference||''}</td><td style="padding:0.5rem;font-size:0.75rem;color:#a0a0c0;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.description||''}</td></tr>`;
     });
     html += '</tbody></table></div>';
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">📋 Transactions</h3><p style="color:#ff3232">Error</p>'; }
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">&#x1F4CB; Transactions</h3><p style="color:#ff3232">Error</p>'; }
 };
 
 window.loadWalletData = async function() {
   const el = document.getElementById('dashContent');
-  el.innerHTML = '<h3 style="color:#00d4ff">💳 Wallet</h3><p style="color:#a0a0c0">Loading...</p>';
+  el.innerHTML = '<h3 style="color:#00d4ff">&#x1F4B3; Wallet</h3><p style="color:#a0a0c0">Loading...</p>';
   try {
     const w = await (await fetch('/api/user/wallet')).json();
     const u = await (await fetch('/api/user/profile')).json();
-    el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">💳 Wallet Overview</h3>
+    el.innerHTML = `<h3 style="color:#00d4ff;margin-bottom:1.5rem">&#x1F4B3; Wallet Overview</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem">
       <div class="glass" style="padding:1.5rem;text-align:center;border-top:3px solid #00d4ff">
-        <p style="color:#a0a0c0;font-size:0.8rem;margin:0">💰 Deposit Balance</p>
+        <p style="color:#a0a0c0;font-size:0.8rem;margin:0">&#x1F4B0; Deposit Balance</p>
         <p style="font-size:1.8rem;font-weight:700;color:#00d4ff;margin:0.3rem 0 0">$${(w.deposit_balance||0).toFixed(2)}</p>
       </div>
       <div class="glass" style="padding:1.5rem;text-align:center;border-top:3px solid #7b2ff7">
-        <p style="color:#a0a0c0;font-size:0.8rem;margin:0">📈 ROI Balance</p>
+        <p style="color:#a0a0c0;font-size:0.8rem;margin:0">&#x1F4C8; ROI Balance</p>
         <p style="font-size:1.8rem;font-weight:700;color:#7b2ff7;margin:0.3rem 0 0">$${(w.roi_balance||0).toFixed(2)}</p>
       </div>
       <div class="glass" style="padding:1.5rem;text-align:center;border-top:3px solid #22c55e">
-        <p style="color:#a0a0c0;font-size:0.8rem;margin:0">🎁 Bonus Balance</p>
+        <p style="color:#a0a0c0;font-size:0.8rem;margin:0">&#x1F381; Bonus Balance</p>
         <p style="font-size:1.8rem;font-weight:700;color:#22c55e;margin:0.3rem 0 0">$${(w.bonus_balance||0).toFixed(2)}</p>
       </div>
       <div class="glass" style="padding:1.5rem;text-align:center;border-top:3px solid #f59e0b">
-        <p style="color:#a0a0c0;font-size:0.8rem;margin:0">🏆 Total ROI Earned</p>
+        <p style="color:#a0a0c0;font-size:0.8rem;margin:0">&#x1F3C6; Total ROI Earned</p>
         <p style="font-size:1.8rem;font-weight:700;color:#f59e0b;margin:0.3rem 0 0">$${(w.total_roi_earned||0).toFixed(2)}</p>
       </div>
     </div>
@@ -274,7 +468,7 @@ window.loadWalletData = async function() {
       <div><span style="color:#a0a0c0">Annual ROI:</span> <strong style="color:#22c55e">${w.roi}%</strong></div>
       <div><span style="color:#a0a0c0">Daily Rate:</span> <strong style="color:#f59e0b">${(w.roi/365).toFixed(4)}%</strong></div>
     </div>`;
-  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">💳 Wallet</h3><p style="color:#ff3232">Error</p>'; }
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">&#x1F4B3; Wallet</h3><p style="color:#ff3232">Error</p>'; }
 };
 
 window.loadDashStats = async function() {
@@ -283,12 +477,12 @@ window.loadDashStats = async function() {
     const el = document.getElementById('dashStats');
     if (!el) return;
     el.innerHTML = [
-      {label:'Total Balance',val:'$'+(u.balance||0).toFixed(2),color:'#00d4ff',icon:'💰'},
-      {label:'Total Deposits',val:'$'+(u.total_deposit||0).toFixed(2),color:'#7b2ff7',icon:'📊'},
-      {label:'Total Profit',val:'$'+(u.total_profit||0).toFixed(2),color:'#22c55e',icon:'📈'},
-      {label:'Investment Plan',val:u.investment_plan,color:'#f59e0b',icon:'🎯'},
-      {label:'Stage ROI',val:getStageROI(u.investment_plan)+'%',color:'#22c55e',icon:'💎'},
-      {label:'Status',val:u.is_active?'Active':'Inactive',color:u.is_active?'#22c55e':'#ff3232',icon:'⚡'}
+      {label:'Total Balance',val:'$'+(u.balance||0).toFixed(2),color:'#00d4ff',icon:'&#x1F4B0;'},
+      {label:'Total Deposits',val:'$'+(u.total_deposit||0).toFixed(2),color:'#7b2ff7',icon:'&#x1F4CA;'},
+      {label:'Total Profit',val:'$'+(u.total_profit||0).toFixed(2),color:'#22c55e',icon:'&#x1F4C8;'},
+      {label:'Investment Plan',val:u.investment_plan,color:'#f59e0b',icon:'&#x1F3AF;'},
+      {label:'Stage ROI',val:getStageROI(u.investment_plan)+'%',color:'#22c55e',icon:'&#x1F48E;'},
+      {label:'Status',val:u.is_active?'Active':'Inactive',color:u.is_active?'#22c55e':'#ff3232',icon:'&#x26A1;'}
     ].map(s => `<div class="glass" style="padding:1rem;text-align:center"><p style="color:#a0a0c0;font-size:0.75rem;margin:0">${s.icon} ${s.label}</p><p style="font-size:1.2rem;font-weight:700;color:${s.color};margin:0.2rem 0 0">${s.val}</p></div>`).join('');
   } catch(e) {}
 };

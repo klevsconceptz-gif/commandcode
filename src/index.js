@@ -264,8 +264,19 @@ app.get('/api/user/wallet', authMiddleware, async c => {
 
 app.get('/api/user/messages', authMiddleware, async c => {
   const u = c.get('user');
-  const msgs = await c.env.DB.prepare('SELECT id,title,body,type,is_read,from_admin,reference,created_at FROM user_messages WHERE user_id=? ORDER BY created_at DESC LIMIT 50').bind(u.id).all();
+  const msgs = await c.env.DB.prepare('SELECT id,title,body,type,is_read,from_admin,sender_id,parent_id,reference,created_at FROM user_messages WHERE user_id=? ORDER BY created_at DESC LIMIT 50').bind(u.id).all();
   return c.json(msgs.results);
+});
+
+// User sends message to admin
+app.post('/api/user/messages', authMiddleware, async c => {
+  const u = c.get('user');
+  const {title, body, parent_id} = await c.req.json();
+  if (!title || !body) return c.json({error:'Title and body required'}, 400);
+  if (title.length > 200) return c.json({error:'Title too long (max 200 chars)'}, 400);
+  if (body.length > 5000) return c.json({error:'Message too long (max 5000 chars)'}, 400);
+  const r = await c.env.DB.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin,sender_id,parent_id) VALUES (?,?,?,?,0,?,?)').bind(u.id, title, body, 'chat', u.id, parent_id||null).run();
+  return c.json({id:r.meta.last_row_id, message:'Message sent to admin'}, 201);
 });
 
 app.get('/api/user/messages/unread-count', authMiddleware, async c => {
@@ -299,14 +310,36 @@ app.post('/api/admin/user/:id/message', adminMiddleware, async c => {
   const {title, body, type} = await c.req.json();
   if (!title || !body) return c.json({error:'Title and body required'}, 400);
   const userId = c.req.param('id');
-  const r = await c.env.DB.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin) VALUES (?,?,?,?,1)').bind(userId, title, body, type||'info').run();
+  const admin = c.get('user');
+  const r = await c.env.DB.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin,sender_id) VALUES (?,?,?,?,1,?)').bind(userId, title, body, type||'info', admin.id).run();
   return c.json({id:r.meta.last_row_id, message:'Message sent'}, 201);
 });
 
-// Admin view all messages for a user
+// Admin view all messages for a user (conversation)
 app.get('/api/admin/user/:id/messages', adminMiddleware, async c => {
-  const msgs = await c.env.DB.prepare('SELECT * FROM user_messages WHERE user_id=? ORDER BY created_at DESC').bind(c.req.param('id')).all();
+  const msgs = await c.env.DB.prepare('SELECT id,title,body,type,is_read,from_admin,sender_id,parent_id,reference,created_at FROM user_messages WHERE user_id=? ORDER BY created_at DESC LIMIT 100').bind(c.req.param('id')).all();
   return c.json(msgs.results);
+});
+
+// Admin: list all conversations (grouped by user, latest message per user)
+app.get('/api/admin/messages', adminMiddleware, async c => {
+  const db = c.env.DB;
+  const conversations = await db.prepare(
+    "SELECT m.user_id, u.username, u.email, m.title, m.body, m.from_admin, m.is_read, m.type, m.created_at, " +
+    "(SELECT COUNT(*) FROM user_messages WHERE user_id=m.user_id AND is_read=0 AND from_admin=0) as unread_from_user, " +
+    "(SELECT COUNT(*) FROM user_messages WHERE user_id=m.user_id) as total_messages " +
+    "FROM user_messages m " +
+    "JOIN users u ON u.id = m.user_id " +
+    "WHERE m.id IN (SELECT MAX(id) FROM user_messages GROUP BY user_id) " +
+    "ORDER BY m.created_at DESC"
+  ).all();
+  return c.json(conversations.results);
+});
+
+// Admin mark message as read
+app.post('/api/admin/message/:id/read', adminMiddleware, async c => {
+  await c.env.DB.prepare('UPDATE user_messages SET is_read=1 WHERE id=?').bind(c.req.param('id')).run();
+  return c.json({message:'Marked as read'});
 });
 
 // Admin delete a message
