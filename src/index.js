@@ -1340,6 +1340,145 @@ app.get('/api/market/sectors', async c => {
   return c.json({sectors: result, tick: _quoteTick, ts: Date.now()});
 });
 
+// ===================== EXTERNAL API (Consignment / Partner Integration) =====================
+// API key middleware for external access
+const externalApiKeyMiddleware = async (c, next) => {
+  const apiKey = c.req.header('X-API-Key') || (await c.req.json().catch(() => ({}))).api_key;
+  const storedKey = await c.env.DB.prepare("SELECT value FROM admin_settings WHERE key='external_api_key'").first();
+  if (!storedKey || !apiKey || apiKey !== storedKey.value) {
+    return c.json({error: 'Invalid or missing API key. Provide X-API-Key header.'}, 401);
+  }
+  await next();
+};
+
+// List available products for external checkout
+app.get('/api/external/products', externalApiKeyMiddleware, async c => {
+  const products = [
+    {id: 'tesla-model-s', name: 'Tesla Model S', price: 79990, image: 'https://quantumx.win/images/tesla-model-s.jpg'},
+    {id: 'tesla-model-y', name: 'Tesla Model Y', price: 49990, image: 'https://quantumx.win/images/tesla-model-y.jpg'},
+    {id: 'tesla-model-3', name: 'Tesla Model 3', price: 42990, image: 'https://quantumx.win/images/tesla-model-3.jpg'},
+    {id: 'tesla-model-x', name: 'Tesla Model X', price: 89990, image: 'https://quantumx.win/images/tesla-model-x.jpg'},
+    {id: 'tesla-cybertruck', name: 'Tesla Cybertruck', price: 69990, image: 'https://quantumx.win/images/tesla-cybertruck.jpg'},
+    {id: 'optimus-bot', name: 'Optimus Bot', price: 25000, image: 'https://quantumx.win/images/optimus-bot.jpg'}
+  ];
+  // Also get payment methods (Bitcoin wallet for immediate payment)
+  const methods = await c.env.DB.prepare('SELECT method, display_name, details FROM payment_settings WHERE is_active=1').all();
+  return c.json({products, payment_methods: methods.results, site: 'https://quantumx.win'});
+});
+
+// Create checkout order from external site
+app.post('/api/external/checkout', externalApiKeyMiddleware, async c => {
+  const data = await c.req.json();
+  const productMap = {
+    'tesla-model-s': {name: 'Tesla Model S', price: 79990},
+    'tesla-model-y': {name: 'Tesla Model Y', price: 49990},
+    'tesla-model-3': {name: 'Tesla Model 3', price: 42990},
+    'tesla-model-x': {name: 'Tesla Model X', price: 89990},
+    'tesla-cybertruck': {name: 'Tesla Cybertruck', price: 69990},
+    'optimus-bot': {name: 'Optimus Bot', price: 25000}
+  };
+  const product = productMap[data.product_id];
+  if (!product) return c.json({error: 'Invalid product_id. Valid: ' + Object.keys(productMap).join(', ')}, 400);
+
+  const payment_method = data.payment_method || 'bitcoin';
+  const methodRow = await c.env.DB.prepare("SELECT method, display_name, details FROM payment_settings WHERE method=? AND is_active=1").bind(payment_method).first();
+  if (!methodRow) return c.json({error: 'Invalid payment method'}, 400);
+
+  // Find or create user by email (from consignment site)
+  const email = data.customer_email;
+  if (!email) return c.json({error: 'customer_email required'}, 400);
+  let user = await c.env.DB.prepare('SELECT id FROM users WHERE email=?').bind(email).first();
+  if (!user) {
+    // Auto-create a user account for the consignment customer
+    const bcrypt = (await import('bcryptjs')).default;
+    const tempPw = bcrypt.hashSync('Qsx' + Math.random().toString(36).slice(2) + '!1', 10);
+    const username = (data.customer_name || email.split('@')[0]).replace(/[^a-zA-Z0-9_]/g,'').slice(0,30);
+    const resetHash = bcrypt.hashSync('consignment-' + Math.random().toString(36).slice(2,10), 10);
+    try {
+      const r = await c.env.DB.prepare('INSERT INTO users (username,email,full_name,phone,password_hash,reset_phrase_hash,is_active) VALUES (?,?,?,?,?,?,1)').bind(username, email, data.customer_name||username, data.customer_phone||'', tempPw, resetHash).run();
+      user = {id: r.meta.last_row_id};
+      // Create wallet
+      await c.env.DB.prepare('INSERT INTO user_wallets (user_id) VALUES (?)').bind(user.id).run();
+    } catch(e) {
+      return c.json({error: 'Failed to create user: ' + e.message}, 400);
+    }
+  }
+
+  // Create deposit transaction
+  const ref = genRef();
+  const txRef = await c.env.DB.prepare('INSERT INTO transactions (user_id,type,amount,status,payment_method,reference,description) VALUES (?,?,?,?,?,?,?)').bind(user.id,'deposit',product.price,'pending',payment_method,ref,'Consignment order: '+product.name).run();
+
+  // Create product order
+  const orderRef = 'QSX-' + Math.random().toString(36).slice(2,8).toUpperCase();
+  const orderR = await c.env.DB.prepare('INSERT INTO product_orders (user_id,product_name,product_price,quantity,payment_method,shipping_address,status,reference) VALUES (?,?,?,?,?,?,?,?)').bind(user.id, product.name, product.price, 1, payment_method, data.shipping_address||'Pending', 'pending', orderRef).run();
+
+  // Get payment details for response
+  let paymentDetails = {};
+  try { paymentDetails = JSON.parse(methodRow.details || '{}'); } catch(e) {}
+  if (payment_method === 'bitcoin') {
+    paymentDetails = {wallet_address: 'bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6', network: 'Bitcoin'};
+  }
+
+  // Send inbox message to user
+  try {
+    await c.env.DB.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin,reference) VALUES (?,?,?,?,1,?)').bind(user.id,
+      '🛍️ Consignment Order Placed',
+      'Your order for ' + product.name + ' ($' + product.price.toLocaleString() + ') has been placed from our partner store.\n\nOrder Ref: ' + orderRef + '\nDeposit Ref: ' + ref + '\n\nPlease complete payment and admin will confirm your order.',
+      'order', orderRef
+    ).run();
+  } catch(e) {}
+
+  return c.json({
+    success: true,
+    order: {
+      id: orderR.meta.last_row_id,
+      reference: orderRef,
+      product: product.name,
+      price: product.price,
+      status: 'pending'
+    },
+    deposit: {
+      reference: ref,
+      amount: product.price,
+      payment_method,
+      payment_details: paymentDetails
+    },
+    checkout_url: 'https://quantumx.win/#/dashboard',
+    message: 'Order created. Customer should complete payment on Quantum Space X.'
+  }, 201);
+});
+
+// Check order status (external)
+app.get('/api/external/order/:ref', externalApiKeyMiddleware, async c => {
+  const ref = c.req.param('ref');
+  const order = await c.env.DB.prepare('SELECT po.*, u.username, u.email FROM product_orders po JOIN users u ON u.id=po.user_id WHERE po.reference=?').bind(ref).first();
+  if (!order) return c.json({error: 'Order not found'}, 404);
+  return c.json({
+    reference: order.reference,
+    product: order.product_name,
+    price: Number(order.product_price),
+    quantity: order.quantity,
+    status: order.status,
+    payment_method: order.payment_method,
+    shipping_address: order.shipping_address,
+    customer: {username: order.username, email: order.email},
+    created_at: order.created_at,
+    updated_at: order.updated_at
+  });
+});
+
+// Admin: manage API key
+app.get('/api/admin/external-api-key', adminMiddleware, async c => {
+  const r = await c.env.DB.prepare("SELECT value FROM admin_settings WHERE key='external_api_key'").first();
+  return c.json({api_key: r ? r.value : null});
+});
+
+app.post('/api/admin/external-api-key/regenerate', adminMiddleware, async c => {
+  const newKey = 'qsx_' + Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2,'0')).join('');
+  await c.env.DB.prepare("INSERT OR REPLACE INTO admin_settings (key, value) VALUES ('external_api_key', ?)").bind(newKey).run();
+  return c.json({api_key: newKey, message: 'API key regenerated'});
+});
+
 // ===================== STATIC ASSETS + SPA FALLBACK =====================
 // [assets] binding serves static files. For non-API routes, serve via ASSETS binding.
 export default {

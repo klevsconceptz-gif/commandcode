@@ -565,19 +565,57 @@ window.loadAdminSettings = async function() {
   const el = document.getElementById('adminContent');
   try {
     const s = await (await fetch('/api/admin/settings')).json();
-    let html = `<h3 style="color:#00d4ff;margin-bottom:1rem">⚙️ Settings</h3>
-    <div class="glass" style="padding:1rem;margin-bottom:1rem">
+    let html = `<h3 style="color:#00d4ff;margin-bottom:1rem">⚙️ Settings</h3>`;
+
+    // External API Key section (for consignment/partner integration)
+    html += `<div class="glass" style="padding:1rem;margin-bottom:1.5rem;border-left:3px solid #7b2ff7">
+      <h4 style="color:#7b2ff7;margin:0 0 0.5rem">🔗 External API Key (Consignment Integration)</h4>
+      <p style="color:#a0a0c0;font-size:0.85rem;margin:0 0 0.8rem">Use this key to link external websites (consignment stores, partners) to the QSX checkout. Pass it as <code style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px">X-API-Key</code> header.</p>
+      <div id="apiKeySection">Loading...</div>
+    </div>`;
+
+    html += `<div class="glass" style="padding:1rem;margin-bottom:1rem">
       <div class="form-group"><input id="setKey" placeholder="Key" style="width:40%;display:inline-block"> <input id="setVal" placeholder="Value" style="width:40%;display:inline-block"> <button class="btn btn-primary btn-sm" onclick="window.saveSetting()">Save</button></div>
     </div>`;
     for (const [k,v] of Object.entries(s)) {
+      const isHidden = k === 'external_api_key';
       html += `<div style="padding:0.5rem;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center">
-        <div><strong style="color:#a0a0c0">${k}</strong>: <span style="color:#fff">${v}</span></div>
-        <button class="btn btn-danger btn-sm" onclick="window.deleteSetting('${k}')">🗑</button>
+        <div><strong style="color:#a0a0c0">${k}</strong>: <span style="color:#fff">${isHidden ? '••••••••••••' : v}</span></div>
+        ${isHidden ? '' : '<button class="btn btn-danger btn-sm" onclick="window.deleteSetting(\''+k+'\')">🗑</button>'}
       </div>`;
     }
     if (!Object.keys(s).length) html += '<p style="color:#a0a0c0">No settings.</p>';
     el.innerHTML = html;
+    // Load API key
+    window.loadApiKey();
   } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">⚙️ Settings</h3><p style="color:#ff3232">Error</p>'; }
+};
+
+window.loadApiKey = async function() {
+  const div = document.getElementById('apiKeySection');
+  if (!div) return;
+  try {
+    const r = await (await fetch('/api/admin/external-api-key')).json();
+    if (r.api_key) {
+      div.innerHTML = `<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+        <code style="background:rgba(255,255,255,0.1);padding:0.5rem 0.8rem;border-radius:8px;color:#fff;font-family:monospace;font-size:0.9rem;word-break:break-all;flex:1">${r.api_key}</code>
+        <button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText('${r.api_key}');showToast('Copied!','success')">📋 Copy</button>
+        <button class="btn btn-danger btn-sm" onclick="window.regenerateApiKey()">🔄 Regenerate</button>
+      </div>
+      <p style="color:#555;font-size:0.75rem;margin:0.5rem 0 0">⚠️ Regenerating will invalidate the current key. Update your consignment site config after regenerating.</p>`;
+    } else {
+      div.innerHTML = '<p style="color:#a0a0c0">No API key set. <button class="btn btn-primary btn-sm" onclick="window.regenerateApiKey()">Generate API Key</button></p>';
+    }
+  } catch(e) { div.innerHTML = '<p style="color:#ff3232">Error loading API key</p>'; }
+};
+
+window.regenerateApiKey = async function() {
+  if (!confirm('Regenerate API key? The current key will stop working immediately.')) return;
+  try {
+    const r = await (await fetch('/api/admin/external-api-key/regenerate', {method:'POST'})).json();
+    showToast('API key regenerated!', 'success');
+    window.loadApiKey();
+  } catch(e) { showToast('Error', 'error'); }
 };
 window.saveSetting = async function() {
   const k=document.getElementById('setKey').value, v=document.getElementById('setVal').value;
