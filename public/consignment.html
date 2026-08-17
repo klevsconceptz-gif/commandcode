@@ -3,16 +3,10 @@
   .consign-product-card{transition:transform .2s,box-shadow .2s}
   .consign-product-card:hover{transform:translateY(-4px);box-shadow:0 8px 32px rgba(0,212,255,0.15)}
   .consign-badge{position:absolute;top:12px;right:12px;background:rgba(0,212,255,0.2);color:#00d4ff;padding:4px 10px;border-radius:20px;font-size:0.7rem;font-weight:700;backdrop-filter:blur(8px);border:1px solid rgba(0,212,255,0.3)}
-  .consign-step{display:flex;align-items:center;gap:0.5rem;padding:0.8rem 1.2rem;border-radius:12px;cursor:pointer;transition:all .2s}
-  .consign-step.active{background:rgba(0,212,255,0.15);border:1px solid rgba(0,212,255,0.4);color:#00d4ff}
-  .consign-step.done{background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:#22c55e}
-  .consign-step.pending{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#555}
   #consignCartCount{background:#00d4ff;color:#000;font-size:0.65rem;min-width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;position:absolute;top:-6px;right:-8px}
 </style>
 
 <div style="max-width:1200px;margin:0 auto;padding:clamp(1rem,3vw,2rem)">
-
-<!-- Header -->
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem;flex-wrap:wrap;gap:1rem">
   <div>
     <h2 style="color:#00d4ff;margin:0 0 0.3rem;display:flex;align-items:center;gap:0.5rem"><img src="/images/logo.png" alt="QS" style="height:28px;width:28px;object-fit:contain;border-radius:6px"> Consignment Store</h2>
@@ -23,8 +17,6 @@
     <button class="btn btn-outline btn-sm" onclick="window.consignShowTrack()">📦 Track Order</button>
   </div>
 </div>
-
-<!-- Sections -->
 <div id="consignContent"></div>
 </div>
 
@@ -38,24 +30,41 @@ const CONSIGN_PRODUCTS = [
   {id:'optimus-bot', name:'Optimus Bot', price:25000, image:'/images/optimus-bot.jpg', desc:'Humanoid general-purpose robot. AI-powered, autonomous tasks, revolutionary.', tag:'Robot'}
 ];
 
+const BTC_WALLET = 'bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6';
+
+// Shipping fees per product (paid via Bitcoin separately)
+const SHIPPING_FEES = {
+  'tesla-model-s': 2500,
+  'tesla-model-y': 2000,
+  'tesla-model-3': 1800,
+  'tesla-model-x': 2800,
+  'tesla-cybertruck': 3000,
+  'optimus-bot': 500
+};
+
 let _consignCart = [];
 try { _consignCart = JSON.parse(localStorage.getItem('qsx_consign_cart')||'[]'); } catch(e){}
+
+function getProductTotal() { return _consignCart.reduce((s, i) => s + i.price * i.qty, 0); }
+function getShippingTotal() { return _consignCart.reduce((s, i) => s + (SHIPPING_FEES[i.id]||0) * i.qty, 0); }
 
 // ========== CATALOG ==========
 window.consignShowCatalog = function() {
   const el = document.getElementById('consignContent');
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:1.5rem">';
   CONSIGN_PRODUCTS.forEach(p => {
+    const ship = SHIPPING_FEES[p.id]||0;
     html += `<div class="glass consign-product-card" style="padding:0;overflow:hidden;position:relative">
       <div class="consign-badge">${p.tag}</div>
       <img src="${p.image}" alt="${p.name}" style="width:100%;height:220px;object-fit:cover;display:block">
       <div style="padding:1.2rem">
         <h3 style="color:#fff;margin:0 0 0.3rem;font-size:1.1rem">${p.name}</h3>
         <p style="color:#a0a0c0;font-size:0.85rem;margin:0 0 1rem;line-height:1.5">${p.desc}</p>
-        <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="margin-bottom:0.8rem">
           <span style="font-size:1.3rem;font-weight:700;color:#00d4ff">$${p.price.toLocaleString()}</span>
-          <button class="btn btn-primary btn-sm" onclick="window.consignAddToCart('${p.id}')">ADD TO CART</button>
+          <span style="color:#f7931a;font-size:0.75rem;margin-left:0.5rem">+ $${ship.toLocaleString()} shipping (₿ BTC)</span>
         </div>
+        <button class="btn btn-primary btn-sm" style="width:100%" onclick="window.consignAddToCart('${p.id}')">ADD TO CART</button>
       </div>
     </div>`;
   });
@@ -85,10 +94,7 @@ window.consignRemoveFromCart = function(productId) {
 window.consignUpdateCartBadge = function() {
   const badge = document.getElementById('consignCartCount');
   const total = _consignCart.reduce((s, i) => s + i.qty, 0);
-  if (badge) {
-    badge.textContent = total;
-    badge.style.display = total > 0 ? 'inline-flex' : 'none';
-  }
+  if (badge) { badge.textContent = total; badge.style.display = total > 0 ? 'inline-flex' : 'none'; }
 };
 
 window.consignShowCart = function() {
@@ -104,7 +110,10 @@ window.consignShowCart = function() {
     return;
   }
 
-  const total = _consignCart.reduce((s, i) => s + i.price * i.qty, 0);
+  const prodTotal = getProductTotal();
+  const shipTotal = getShippingTotal();
+  const grandTotal = prodTotal + shipTotal;
+
   let html = `<div style="margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center">
     <h3 style="color:#00d4ff;margin:0">🛒 Shopping Cart (${_consignCart.length} item${_consignCart.length>1?'s':''})</h3>
     <button class="btn btn-outline btn-sm" onclick="window.consignShowCatalog()">← Continue Shopping</button>
@@ -112,25 +121,38 @@ window.consignShowCart = function() {
 
   _consignCart.forEach(item => {
     const p = CONSIGN_PRODUCTS.find(x => x.id === item.id);
+    const ship = SHIPPING_FEES[item.id]||0;
     html += `<div class="glass" style="padding:1rem;margin-bottom:0.8rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
       <img src="${p?p.image:'/images/hero-starship.jpg'}" alt="${item.name}" style="width:80px;height:60px;object-fit:cover;border-radius:8px">
       <div style="flex:1;min-width:150px">
         <strong style="color:#fff;font-size:1rem">${item.name}</strong>
         <p style="color:#a0a0c0;font-size:0.85rem;margin:0.2rem 0 0">Qty: ${item.qty} × $${item.price.toLocaleString()}</p>
+        <p style="color:#f7931a;font-size:0.75rem;margin:0.1rem 0 0">₿ Shipping: ${item.qty} × $${ship.toLocaleString()}</p>
       </div>
       <div style="text-align:right">
-        <strong style="color:#00d4ff;font-size:1.1rem">$${(item.price * item.qty).toLocaleString()}</strong>
+        <strong style="color:#00d4ff;font-size:1.1rem">$${(item.price * item.qty).toLocaleString()}</strong><br>
+        <span style="color:#f7931a;font-size:0.75rem">+ $${(ship * item.qty).toLocaleString()} ship</span>
       </div>
       <button class="btn btn-danger btn-sm" onclick="window.consignRemoveFromCart('${item.id}')">✕</button>
     </div>`;
   });
 
-  html += `<div class="glass" style="padding:1.5rem;margin-top:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
-    <div>
-      <span style="color:#a0a0c0;font-size:0.9rem">Total:</span>
-      <span style="font-size:1.8rem;font-weight:700;color:#00d4ff;margin-left:0.5rem">$${total.toLocaleString()}</span>
+  html += `<div class="glass" style="padding:1.5rem;margin-top:1rem">
+    <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+      <span style="color:#a0a0c0;font-size:0.9rem">Product Total:</span>
+      <span style="color:#fff;font-size:1rem;font-weight:600">$${prodTotal.toLocaleString()}</span>
     </div>
-    <button class="btn btn-primary" style="padding:0.8rem 2rem;font-size:1rem" onclick="window.consignShowCheckout()">Proceed to Checkout →</button>
+    <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(247,147,26,0.3)">
+      <span style="color:#f7931a;font-size:0.9rem">🚚 Shipping Fee (₿ Bitcoin only):</span>
+      <span style="color:#f7931a;font-size:1rem;font-weight:600">$${shipTotal.toLocaleString()}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:0.8rem 0;margin-top:0.5rem">
+      <span style="color:#fff;font-size:1.1rem;font-weight:700">Grand Total:</span>
+      <span style="color:#00d4ff;font-size:1.5rem;font-weight:700">$${grandTotal.toLocaleString()}</span>
+    </div>
+    <div style="margin-top:1rem;display:flex;justify-content:flex-end">
+      <button class="btn btn-primary" style="padding:0.8rem 2rem;font-size:1rem" onclick="window.consignShowCheckout()">Proceed to Checkout →</button>
+    </div>
   </div>`;
 
   el.innerHTML = html;
@@ -140,7 +162,9 @@ window.consignShowCart = function() {
 // ========== CHECKOUT ==========
 window.consignShowCheckout = function() {
   if (!_consignCart.length) return window.consignShowCart();
-  const total = _consignCart.reduce((s, i) => s + i.price * i.qty, 0);
+  const prodTotal = getProductTotal();
+  const shipTotal = getShippingTotal();
+  const grandTotal = prodTotal + shipTotal;
   const el = document.getElementById('consignContent');
 
   let html = `<div style="margin-bottom:1.5rem"><button class="btn btn-outline btn-sm" onclick="window.consignShowCart()">← Back to Cart</button></div>
@@ -155,15 +179,16 @@ window.consignShowCheckout = function() {
     <div class="form-group"><label>Phone (optional)</label><input id="coPhone" type="tel" placeholder="+1 234 567 890" style="width:100%;padding:0.7rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:1rem"></div>
   </div>`;
 
-  // Shipping
+  // Shipping address
   html += `<div class="glass" style="padding:1.5rem">
     <h4 style="color:#e0e0e0;margin:0 0 1rem">🚚 Shipping Address</h4>
     <div class="form-group"><label>Address *</label><textarea id="coAddress" rows="3" placeholder="Full shipping address including city, state, zip, country" style="width:100%;padding:0.7rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:1rem;resize:vertical;font-family:inherit"></textarea></div>
   </div>`;
 
-  // Payment method
+  // Payment method for PRODUCT price
   html += `<div class="glass" style="padding:1.5rem">
-    <h4 style="color:#e0e0e0;margin:0 0 1rem">💳 Payment Method</h4>
+    <h4 style="color:#e0e0e0;margin:0 0 1rem">💳 Payment Method (Product Price)</h4>
+    <p style="color:#a0a0c0;font-size:0.85rem;margin:0 0 1rem">Choose how to pay for your product ($${prodTotal.toLocaleString()})</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:0.8rem" id="coPayMethods">
       <label class="glass" style="padding:0.8rem;display:flex;align-items:center;gap:0.5rem;cursor:pointer;border:2px solid rgba(0,212,255,0.4);border-radius:10px">
         <input type="radio" name="coPayment" value="bitcoin" checked style="accent-color:#00d4ff"> <img src="/images/bitcoin.png" style="height:24px;width:24px;object-fit:contain"> <span style="color:#fff;font-size:0.9rem">Bitcoin</span>
@@ -187,25 +212,47 @@ window.consignShowCheckout = function() {
     <div id="coPayInfo" style="margin-top:1rem"></div>
   </div>`;
 
+  // Shipping fee — ALWAYS Bitcoin
+  html += `<div class="glass" style="padding:1.5rem;border-left:3px solid #f7931a">
+    <h4 style="color:#f7931a;margin:0 0 0.8rem">₿ Shipping Fee Payment (Bitcoin Only)</h4>
+    <p style="color:#a0a0c0;font-size:0.85rem;margin:0 0 0.5rem">Shipping fee of <strong style="color:#fff">$${shipTotal.toLocaleString()}</strong> must be paid via Bitcoin to:</p>
+    <p style="color:#fff;font-family:monospace;font-size:0.9rem;word-break:break-all;margin:0 0 0.8rem;background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:8px">${BTC_WALLET}</p>
+    <button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText('${BTC_WALLET}');showToast('Copied!','success')">📋 Copy Wallet Address</button>
+    <p style="color:#555;font-size:0.75rem;margin-top:0.8rem">Shipping is paid separately from the product price via Bitcoin only.</p>
+  </div>`;
+
   // Order summary
   html += `<div class="glass" style="padding:1.5rem;border-top:3px solid #00d4ff">
     <h4 style="color:#e0e0e0;margin:0 0 1rem">📋 Order Summary</h4>`;
   _consignCart.forEach(item => {
+    const ship = SHIPPING_FEES[item.id]||0;
     html += `<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)">
       <span style="color:#e0e0e0">${item.name} × ${item.qty}</span>
       <span style="color:#fff;font-weight:600">$${(item.price * item.qty).toLocaleString()}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:0.2rem 0 0.4rem;border-bottom:1px solid rgba(247,147,26,0.15)">
+      <span style="color:#f7931a;font-size:0.8rem;padding-left:1rem">↳ Shipping (₿ BTC)</span>
+      <span style="color:#f7931a;font-size:0.85rem">$${(ship * item.qty).toLocaleString()}</span>
     </div>`;
   });
-  html += `<div style="display:flex;justify-content:space-between;padding:0.8rem 0;margin-top:0.5rem;border-top:2px solid rgba(0,212,255,0.3)">
-    <span style="color:#fff;font-size:1.1rem;font-weight:700">Total</span>
-    <span style="color:#00d4ff;font-size:1.3rem;font-weight:700">$${total.toLocaleString()}</span>
+  html += `<div style="display:flex;justify-content:space-between;padding:0.4rem 0;margin-top:0.5rem;border-top:1px solid rgba(255,255,255,0.1)">
+    <span style="color:#a0a0c0;font-size:0.9rem">Product Total:</span>
+    <span style="color:#fff;font-size:1rem;font-weight:600">$${prodTotal.toLocaleString()}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:2px solid rgba(0,212,255,0.3)">
+    <span style="color:#f7931a;font-size:0.9rem">🚚 Shipping (₿ Bitcoin):</span>
+    <span style="color:#f7931a;font-size:1rem;font-weight:600">$${shipTotal.toLocaleString()}</span>
+  </div>
+  <div style="display:flex;justify-content:space-between;padding:0.8rem 0;margin-top:0.5rem">
+    <span style="color:#fff;font-size:1.1rem;font-weight:700">Grand Total:</span>
+    <span style="color:#00d4ff;font-size:1.3rem;font-weight:700">$${grandTotal.toLocaleString()}</span>
   </div>`;
 
   html += `<div style="margin-top:1.5rem;display:flex;gap:0.5rem;flex-wrap:wrap">
     <button class="btn btn-primary" style="flex:1;padding:1rem;font-size:1.05rem;font-weight:700" onclick="window.consignPlaceOrder()">🔒 Place Order</button>
     <button class="btn btn-outline" onclick="window.consignShowCart()">← Back</button>
   </div>
-  <p style="color:#555;font-size:0.75rem;margin-top:1rem;text-align:center">Your order will be processed securely. Bitcoin payments go to our verified wallet. Other methods: admin will provide details.</p>
+  <p style="color:#555;font-size:0.75rem;margin-top:1rem;text-align:center">Product price and shipping fee are paid separately. Shipping is always via Bitcoin.</p>
   </div>`;
 
   html += '</div>';
@@ -219,13 +266,12 @@ window.consignShowCheckout = function() {
       const val = l.querySelector('input').value;
       const info = document.getElementById('coPayInfo');
       if (val === 'bitcoin') {
-        info.innerHTML = `<div class="glass" style="padding:0.8rem;border-left:3px solid #f7931a"><p style="color:#f7931a;font-weight:600;margin:0 0 0.3rem">₿ Send Bitcoin to:</p><p style="color:#fff;font-family:monospace;font-size:0.85rem;word-break:break-all;margin:0">bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6</p><button class="btn btn-outline btn-sm" style="margin-top:0.5rem" onclick="navigator.clipboard.writeText('bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6');showToast('Copied!','success')">📋 Copy Address</button></div>`;
+        info.innerHTML = `<div class="glass" style="padding:0.8rem;border-left:3px solid #f7931a"><p style="color:#f7931a;font-weight:600;margin:0 0 0.3rem">₿ Send Bitcoin to:</p><p style="color:#fff;font-family:monospace;font-size:0.85rem;word-break:break-all;margin:0">${BTC_WALLET}</p><button class="btn btn-outline btn-sm" style="margin-top:0.5rem" onclick="navigator.clipboard.writeText('${BTC_WALLET}');showToast('Copied!','success')">📋 Copy</button></div>`;
       } else {
         info.innerHTML = `<div class="glass" style="padding:0.8rem;border-left:3px solid #f59e0b"><p style="color:#f59e0b;font-weight:600;margin:0 0 0.3rem">📩 Payment Details</p><p style="color:#a0a0c0;font-size:0.85rem;margin:0">After placing your order, admin will send you payment instructions via email/inbox message.</p></div>`;
       }
     });
   });
-  // Trigger bitcoin by default
   document.querySelector('#coPayMethods input[value="bitcoin"]').click();
 };
 
@@ -241,46 +287,35 @@ window.consignPlaceOrder = async function() {
   if (!email || !email.includes('@')) return showToast('Please enter a valid email', 'error');
   if (!address) return showToast('Please enter a shipping address', 'error');
 
-  const total = _consignCart.reduce((s, i) => s + i.price * i.qty, 0);
+  const prodTotal = getProductTotal();
+  const shipTotal = getShippingTotal();
+  const grandTotal = prodTotal + shipTotal;
   const el = document.getElementById('consignContent');
   el.innerHTML = '<div style="text-align:center;padding:3rem"><p style="font-size:2rem">⏳</p><p style="color:#a0a0c0">Placing your order...</p></div>';
 
   try {
-    // Try external API first (works without login)
     const API_KEY = 'qsx_d61ef3d51b3fd7880ac5d5fa9d572caf0fe281d69e12c127';
-    const primaryProduct = _consignCart[0]; // Process first item via API
-
     let orderResult = null;
-
-    // Check if user is logged in
     const token = localStorage.getItem('token');
+
     if (token) {
-      // Logged in: use user API directly
       for (const item of _consignCart) {
-        // Create deposit
         const dep = await (await fetch('/api/user/deposit', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+          method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
           body: JSON.stringify({amount: item.price * item.qty, payment_method: payment})
         })).json();
         if (dep.error) throw new Error(dep.error);
-
-        // Create order
         const order = await (await fetch('/api/shop/order', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+          method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
           body: JSON.stringify({user_id: 0, product_name: item.name, product_price: item.price * item.qty, quantity: item.qty, payment_method: payment, shipping_address: address})
         })).json();
         if (order.error) throw new Error(order.error);
-
         if (!orderResult) orderResult = {ref: order.reference, depRef: dep.reference};
       }
     } else {
-      // Not logged in: use external API
       for (const item of _consignCart) {
         const r = await (await fetch('/api/external/checkout', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json', 'X-API-Key': API_KEY},
+          method: 'POST', headers: {'Content-Type': 'application/json', 'X-API-Key': API_KEY},
           body: JSON.stringify({product_id: item.id, customer_email: email, customer_name: name, customer_phone: phone, payment_method: payment, shipping_address: address})
         })).json();
         if (r.error) throw new Error(r.error);
@@ -288,7 +323,6 @@ window.consignPlaceOrder = async function() {
       }
     }
 
-    // Success!
     _consignCart = [];
     localStorage.removeItem('qsx_consign_cart');
     window.consignUpdateCartBadge();
@@ -301,19 +335,27 @@ window.consignPlaceOrder = async function() {
         <h4 style="color:#00d4ff;margin:0 0 1rem">📦 Order Details</h4>
         <p style="color:#e0e0e0;margin:0 0 0.5rem"><strong>Order Ref:</strong> <span style="color:#00d4ff;font-family:monospace">${orderResult.ref}</span></p>
         <p style="color:#e0e0e0;margin:0 0 0.5rem"><strong>Deposit Ref:</strong> <span style="color:#f59e0b;font-family:monospace">${orderResult.depRef}</span></p>
-        <p style="color:#e0e0e0;margin:0 0 0.5rem"><strong>Total:</strong> $${total.toLocaleString()}</p>
-        <p style="color:#e0e0e0;margin:0 0 0.5rem"><strong>Payment:</strong> ${payment.charAt(0).toUpperCase()+payment.slice(1)}</p>
-        <p style="color:#e0e0e0;margin:0"><strong>Shipping:</strong> ${address}</p>
+        <p style="color:#e0e0e0;margin:0 0 0.5rem"><strong>Product Total:</strong> $${prodTotal.toLocaleString()}</p>
+        <p style="color:#f7931a;margin:0 0 0.5rem"><strong>Shipping Fee (₿ BTC):</strong> $${shipTotal.toLocaleString()}</p>
+        <p style="color:#e0e0e0;margin:0 0 0.5rem"><strong>Grand Total:</strong> $${grandTotal.toLocaleString()}</p>
+        <p style="color:#e0e0e0;margin:0 0 0.5rem"><strong>Product Payment:</strong> ${payment.charAt(0).toUpperCase()+payment.slice(1)}</p>
+        <p style="color:#f7931a;margin:0 0 0.5rem"><strong>Shipping Payment:</strong> Bitcoin (₿)</p>
+        <p style="color:#e0e0e0;margin:0"><strong>Shipping To:</strong> ${address}</p>
       </div>
-      ${payment === 'bitcoin' ? `<div class="glass" style="padding:1.5rem;text-align:left;margin-bottom:1.5rem;border-left:3px solid #f7931a">
-        <h4 style="color:#f7931a;margin:0 0 0.8rem">₿ Bitcoin Payment</h4>
-        <p style="color:#a0a0c0;font-size:0.85rem;margin:0 0 0.5rem">Send the equivalent of <strong style="color:#fff">$${total.toLocaleString()}</strong> in BTC to:</p>
-        <p style="color:#fff;font-family:monospace;font-size:0.9rem;word-break:break-all;margin:0 0 0.8rem;background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:8px">bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6</p>
-        <button class="btn btn-primary btn-sm" onclick="navigator.clipboard.writeText('bc1q04k3fuas4eratzmv9padu9zjf7dwh4xv0s23k6');showToast('Copied!','success')">📋 Copy Wallet Address</button>
-      </div>` : `<div class="glass" style="padding:1.5rem;text-align:left;margin-bottom:1.5rem;border-left:3px solid #f59e0b">
-        <h4 style="color:#f59e0b;margin:0 0 0.5rem">📩 Payment Details Pending</h4>
-        <p style="color:#a0a0c0;font-size:0.85rem;margin:0">Admin will send you payment instructions for ${payment} to your email <strong style="color:#fff">${email}</strong>. Check your inbox on the dashboard.</p>
+      ${payment === 'bitcoin' ? `<div class="glass" style="padding:1.5rem;text-align:left;margin-bottom:1rem;border-left:3px solid #f7931a">
+        <h4 style="color:#f7931a;margin:0 0 0.8rem">₿ Product Payment (Bitcoin)</h4>
+        <p style="color:#a0a0c0;font-size:0.85rem;margin:0 0 0.5rem">Send <strong style="color:#fff">$${prodTotal.toLocaleString()}</strong> in BTC to:</p>
+        <p style="color:#fff;font-family:monospace;font-size:0.85rem;word-break:break-all;margin:0 0 0.5rem;background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:8px">${BTC_WALLET}</p>
+      </div>` : `<div class="glass" style="padding:1.5rem;text-align:left;margin-bottom:1rem;border-left:3px solid #f59e0b">
+        <h4 style="color:#f59e0b;margin:0 0 0.5rem">📩 Product Payment (${payment})</h4>
+        <p style="color:#a0a0c0;font-size:0.85rem;margin:0">Admin will send you payment instructions for <strong style="color:#fff">$${prodTotal.toLocaleString()}</strong> to <strong style="color:#fff">${email}</strong>.</p>
       </div>`}
+      <div class="glass" style="padding:1.5rem;text-align:left;margin-bottom:1.5rem;border-left:3px solid #f7931a">
+        <h4 style="color:#f7931a;margin:0 0 0.8rem">₿ Shipping Fee Payment (Bitcoin Only)</h4>
+        <p style="color:#a0a0c0;font-size:0.85rem;margin:0 0 0.5rem">Send <strong style="color:#fff">$${shipTotal.toLocaleString()}</strong> shipping fee in BTC to:</p>
+        <p style="color:#fff;font-family:monospace;font-size:0.85rem;word-break:break-all;margin:0 0 0.8rem;background:rgba(0,0,0,0.3);padding:0.8rem;border-radius:8px">${BTC_WALLET}</p>
+        <button class="btn btn-primary btn-sm" onclick="navigator.clipboard.writeText('${BTC_WALLET}');showToast('Copied!','success')">📋 Copy Wallet Address</button>
+      </div>
       <div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="window.consignShowTrack()">📦 Track This Order</button>
         <button class="btn btn-outline" onclick="window.consignShowCatalog()">🛍 Continue Shopping</button>
@@ -350,26 +392,14 @@ window.consignTrackOrder = async function() {
   const email = document.getElementById('trackEmail').value.trim();
   if (!ref) return showToast('Enter order reference', 'error');
   if (!email) return showToast('Enter your email', 'error');
-
   const div = document.getElementById('trackResult');
   div.innerHTML = '<p style="color:#a0a0c0">Looking up your order...</p>';
 
   try {
     const API_KEY = 'qsx_d61ef3d51b3fd7880ac5d5fa9d572caf0fe281d69e12c127';
-    const r = await (await fetch('/api/external/order/' + ref, {
-      headers: {'X-API-Key': API_KEY}
-    })).json();
-
-    if (r.error) {
-      div.innerHTML = `<div class="glass" style="padding:1.5rem;text-align:center"><p style="color:#ff3232">❌ ${r.error}</p><p style="color:#555;font-size:0.85rem">Make sure the order reference is correct.</p></div>`;
-      return;
-    }
-
-    // Verify email matches
-    if (r.customer && r.customer.email && r.customer.email.toLowerCase() !== email.toLowerCase()) {
-      div.innerHTML = `<div class="glass" style="padding:1.5rem;text-align:center"><p style="color:#ff3232">❌ Email does not match this order.</p></div>`;
-      return;
-    }
+    const r = await (await fetch('/api/external/order/' + ref, {headers: {'X-API-Key': API_KEY}})).json();
+    if (r.error) { div.innerHTML = `<div class="glass" style="padding:1.5rem;text-align:center"><p style="color:#ff3232">❌ ${r.error}</p></div>`; return; }
+    if (r.customer && r.customer.email && r.customer.email.toLowerCase() !== email.toLowerCase()) { div.innerHTML = `<div class="glass" style="padding:1.5rem;text-align:center"><p style="color:#ff3232">❌ Email does not match this order.</p></div>`; return; }
 
     const statusMap = {
       pending: {icon: '⏳', label: 'Awaiting Payment', color: '#f59e0b', desc: 'Your order has been placed. Please complete payment.'},
@@ -387,34 +417,15 @@ window.consignTrackOrder = async function() {
         <p style="color:#a0a0c0;font-size:0.9rem;margin:0">${st.desc}</p>
       </div>
       <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:1rem">
-        <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)">
-          <span style="color:#a0a0c0;font-size:0.9rem">Order Ref</span>
-          <span style="color:#00d4ff;font-family:monospace;font-size:0.9rem">${r.reference}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)">
-          <span style="color:#a0a0c0;font-size:0.9rem">Product</span>
-          <span style="color:#fff;font-size:0.9rem">${r.product}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)">
-          <span style="color:#a0a0c0;font-size:0.9rem">Amount</span>
-          <span style="color:#fff;font-size:0.9rem">$${Number(r.price).toLocaleString()}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)">
-          <span style="color:#a0a0c0;font-size:0.9rem">Payment</span>
-          <span style="color:#e0e0e0;font-size:0.9rem">${r.payment_method||'N/A'}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)">
-          <span style="color:#a0a0c0;font-size:0.9rem">Ships To</span>
-          <span style="color:#e0e0e0;font-size:0.9rem;max-width:250px;text-align:right">${r.shipping_address||'N/A'}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:0.4rem 0">
-          <span style="color:#a0a0c0;font-size:0.9rem">Placed</span>
-          <span style="color:#555;font-size:0.85rem">${r.created_at ? new Date(r.created_at).toLocaleString() : 'N/A'}</span>
-        </div>
+        <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)"><span style="color:#a0a0c0;font-size:0.9rem">Order Ref</span><span style="color:#00d4ff;font-family:monospace;font-size:0.9rem">${r.reference}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)"><span style="color:#a0a0c0;font-size:0.9rem">Product</span><span style="color:#fff;font-size:0.9rem">${r.product}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)"><span style="color:#a0a0c0;font-size:0.9rem">Amount</span><span style="color:#fff;font-size:0.9rem">$${Number(r.price).toLocaleString()}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(247,147,26,0.3)"><span style="color:#f7931a;font-size:0.9rem">🚚 Shipping (₿ BTC)</span><span style="color:#f7931a;font-size:0.9rem">Paid via Bitcoin</span></div>
+        <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)"><span style="color:#a0a0c0;font-size:0.9rem">Payment</span><span style="color:#e0e0e0;font-size:0.9rem">${r.payment_method||'N/A'}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.05)"><span style="color:#a0a0c0;font-size:0.9rem">Ships To</span><span style="color:#e0e0e0;font-size:0.9rem;max-width:250px;text-align:right">${r.shipping_address||'N/A'}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:0.4rem 0"><span style="color:#a0a0c0;font-size:0.9rem">Placed</span><span style="color:#555;font-size:0.85rem">${r.created_at ? new Date(r.created_at).toLocaleString() : 'N/A'}</span></div>
       </div>
-      <div style="margin-top:1.5rem;text-align:center">
-        <p style="color:#555;font-size:0.8rem;margin:0">Need help? Contact <a href="mailto:quantumspacex1@gmail.com" style="color:#00d4ff">quantumspacex1@gmail.com</a> or <a href="https://t.me/quantumspacex1" target="_blank" style="color:#00d4ff">Telegram</a></p>
-      </div>
+      <div style="margin-top:1.5rem;text-align:center"><p style="color:#555;font-size:0.8rem;margin:0">Need help? Contact <a href="mailto:quantumspacex1@gmail.com" style="color:#00d4ff">quantumspacex1@gmail.com</a> or <a href="https://t.me/quantumspacex1" target="_blank" style="color:#00d4ff">Telegram</a></p></div>
     </div>`;
   } catch(e) {
     div.innerHTML = `<div class="glass" style="padding:1.5rem;text-align:center"><p style="color:#ff3232">Error tracking order. Please try again.</p></div>`;
