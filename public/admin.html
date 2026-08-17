@@ -8,6 +8,7 @@
 <button class="btn btn-outline btn-sm" onclick="window.showAdminSection('payments')">💳 Payments</button>
 <button class="btn btn-outline btn-sm" onclick="window.showAdminSection('roi')">📈 ROI</button>
 <button class="btn btn-outline btn-sm" onclick="window.showAdminSection('orders')">🛍 Orders</button>
+<button class="btn btn-outline btn-sm" onclick="window.showAdminSection('deliveries')">🚚 Deliveries</button>
 <button class="btn btn-outline btn-sm" onclick="window.showAdminSection('tickets')">🎫 Tickets</button>
 <button class="btn btn-outline btn-sm" onclick="window.showAdminSection('announcements')">📢 Announce</button>
 <button class="btn btn-outline btn-sm" onclick="window.showAdminSection('messages')">📨 Messages</button>
@@ -21,7 +22,7 @@
 
 <script>
 window.showAdminSection = function(section) {
-  const sections = ['transactions','users','payments','roi','orders','tickets','announcements','messages','stock-trades','logs','settings'];
+  const sections = ['transactions','users','payments','roi','orders','deliveries','tickets','announcements','messages','stock-trades','logs','settings'];
   const btns = document.querySelectorAll('.tab-strip .btn-sm');
   btns.forEach((b,i) => { if(i<sections.length) b.className = sections[i]===section ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm'; });
   const el = document.getElementById('adminContent');
@@ -31,6 +32,7 @@ window.showAdminSection = function(section) {
   else if (section==='announcements') window.loadAdminAnnouncements();
   else if (section==='messages') window.loadAdminMessages();
   else if (section==='orders') window.loadAdminOrders();
+  else if (section==='deliveries') window.loadAdminDeliveries();
   else if (section==='tickets') window.loadAdminTickets();
   else if (section==='roi') window.loadAdminROI();
   else if (section==='settings') window.loadAdminSettings();
@@ -507,6 +509,124 @@ window.loadAdminOrders = async function() {
   } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">🛍 Orders</h3><p style="color:#ff3232">Error</p>'; }
 };
 window.updateOrder = async function(id,status) { await fetch('/api/admin/product-orders/'+id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})}); showToast('Order '+status); window.loadAdminOrders(); };
+
+// === DELIVERIES ===
+window.loadAdminDeliveries = async function() {
+  const el = document.getElementById('adminContent');
+  el.innerHTML = '<h3 style="color:#00d4ff">🚚 Deliveries</h3><p style="color:#a0a0c0">Loading...</p>';
+  try {
+    const deliveries = await (await fetch('/api/admin/deliveries')).json();
+    let html = `<h3 style="color:#00d4ff;margin-bottom:1rem">🚚 Deliveries</h3>
+    <button class="btn btn-primary btn-sm" style="margin-bottom:1rem" onclick="window.showCreateDelivery()">➕ Create Delivery</button>`;
+    if (!deliveries.length) { html += '<p style="color:#a0a0c0">No deliveries yet.</p>'; }
+    else {
+      deliveries.forEach(d => {
+        const sc = {preparing:'#f59e0b',dispatched:'#e879f9',in_transit:'#00d4ff',out_for_delivery:'#7b2ff7',delivered:'#22c55e'}[d.status]||'#a0a0c0';
+        const si = {preparing:'📦',dispatched:'🚀',in_transit:'🚛',out_for_delivery:'🚗',delivered:'✅'}[d.status]||'📦';
+        html += `<div class="glass" style="padding:1rem;margin-bottom:0.8rem;border-left:3px solid ${sc}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem">
+            <div style="flex:1;min-width:200px">
+              <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem">
+                <span style="font-size:1.1rem">${si}</span>
+                <strong style="color:#fff;font-size:1rem">${d.product_name||'Delivery #'+d.id}</strong>
+                <span style="background:${sc};color:#000;font-size:0.65rem;padding:2px 8px;border-radius:10px;font-weight:700">${(d.status||'preparing').replace(/_/g,' ').toUpperCase()}</span>
+                ${d.receipt_generated?'<span style="background:#22c55e;color:#000;font-size:0.6rem;padding:2px 6px;border-radius:10px;font-weight:700">🧾 RECEIPT</span>':''}
+              </div>
+              <p style="color:#a0a0c0;font-size:0.85rem;margin:0">User: <strong style="color:#fff">${d.username||d.user_id}</strong> &middot; $${Number(d.product_price).toFixed(2)} + $${Number(d.shipping_fee).toFixed(2)} ship</p>
+              <p style="color:#555;font-size:0.8rem;margin:0.2rem 0 0">${d.origin_location?'From: '+d.origin_location:''} ${d.destination?'&rarr; '+d.destination:''}</p>
+              <p style="color:#555;font-size:0.75rem;margin:0.2rem 0 0">${d.carrier?'Carrier: '+d.carrier:''} ${d.tracking_number?'&middot; Track#: '+d.tracking_number:''} ${d.driver_name?'&middot; Driver: '+d.driver_name:''}</p>
+            </div>
+            <div style="text-align:right;min-width:200px">
+              <span style="color:#555;font-size:0.75rem">${d.created_at?new Date(d.created_at).toLocaleDateString():''}</span>
+              <div style="display:flex;gap:0.3rem;flex-wrap:wrap;justify-content:flex-end;margin-top:0.5rem">
+                <button class="btn btn-outline btn-sm" onclick="window.editDelivery(${d.id})" title="Edit">✏️</button>
+                <button class="btn btn-outline btn-sm" onclick="window.updateDeliveryStatus(${d.id})" title="Update Status">📍</button>
+                <button class="btn btn-outline btn-sm" onclick="window.generateReceipt(${d.id})" title="Generate Receipt">🧾</button>
+                <button class="btn btn-primary btn-sm" onclick="window.authenticateSale(${d.id})" title="Authenticate Sale">✅</button>
+                <button class="btn btn-danger btn-sm" onclick="window.deleteDelivery(${d.id})" title="Delete">🗑</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      });
+    }
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">🚚 Deliveries</h3><p style="color:#ff3232">Error</p>'; }
+};
+
+window.showCreateDelivery = async function() {
+  const el = document.getElementById('adminContent');
+  const users = await (await fetch('/api/admin/users')).json();
+  let userOpts = users.map(u => '<option value="'+u.id+'">'+u.username+' ('+u.email+')</option>').join('');
+  el.innerHTML = '<h3 style="color:#00d4ff;margin-bottom:1rem">➕ Create Delivery</h3><div style="max-width:600px">' +
+    '<div class="form-group"><label>User *</label><select id="dlUser" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff">'+userOpts+'</select></div>' +
+    '<div class="form-group"><label>Product Name</label><input id="dlProduct" placeholder="Tesla Model S" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem"><div class="form-group"><label>Product Price ($)</label><input id="dlPrice" type="number" step="0.01" placeholder="79990" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div><div class="form-group"><label>Shipping Fee ($)</label><input id="dlShipFee" type="number" step="0.01" placeholder="2500" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div></div>' +
+    '<div class="form-group"><label>Origin Location</label><input id="dlOrigin" placeholder="Houston, TX Warehouse" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div>' +
+    '<div class="form-group"><label>Destination</label><input id="dlDest" placeholder="Customer address" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem"><div class="form-group"><label>Dispatch Date</label><input id="dlDispatch" type="datetime-local" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div><div class="form-group"><label>Est. Delivery</label><input id="dlEstDel" type="datetime-local" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem"><div class="form-group"><label>Carrier</label><input id="dlCarrier" placeholder="FedEx, DHL" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div><div class="form-group"><label>Tracking #</label><input id="dlTrack" placeholder="FX123456789" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div></div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem"><div class="form-group"><label>Driver Name</label><input id="dlDriver" placeholder="John Doe" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div><div class="form-group"><label>Driver Phone</label><input id="dlDriverPhone" placeholder="+1 234 567 890" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div></div>' +
+    '<div class="form-group"><label>Notes</label><textarea id="dlNotes" rows="2" placeholder="Special instructions..." style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;resize:vertical;font-family:inherit"></textarea></div>' +
+    '<div style="display:flex;gap:0.5rem"><button class="btn btn-primary" onclick="window.doCreateDelivery()">Create Delivery</button><button class="btn btn-outline" onclick="window.loadAdminDeliveries()">Cancel</button></div></div>';
+};
+
+window.doCreateDelivery = async function() {
+  const data = {user_id:Number(document.getElementById('dlUser').value),product_name:document.getElementById('dlProduct').value,product_price:document.getElementById('dlPrice').value,shipping_fee:document.getElementById('dlShipFee').value,origin_location:document.getElementById('dlOrigin').value,destination:document.getElementById('dlDest').value,dispatch_date:document.getElementById('dlDispatch').value||null,estimated_delivery:document.getElementById('dlEstDel').value||null,carrier:document.getElementById('dlCarrier').value,tracking_number:document.getElementById('dlTrack').value,driver_name:document.getElementById('dlDriver').value,driver_phone:document.getElementById('dlDriverPhone').value,notes:document.getElementById('dlNotes').value};
+  if(!data.user_id)return showToast('Select a user','error');
+  try{const r=await(await fetch('/api/admin/deliveries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})).json();if(r.error)return showToast(r.error,'error');showToast('Delivery created!','success');window.loadAdminDeliveries();}catch(e){showToast('Error','error');}
+};
+
+window.editDelivery = async function(id) {
+  const deliveries = await (await fetch('/api/admin/deliveries')).json();
+  const d = deliveries.find(x => x.id===id); if(!d)return;
+  const el = document.getElementById('adminContent');
+  const inp = (lbl,id,val,ph='') => '<div class="form-group"><label>'+lbl+'</label><input id="'+id+'" value="'+(val||'')+'" placeholder="'+ph+'" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div>';
+  el.innerHTML = '<h3 style="color:#00d4ff;margin-bottom:1rem">✏️ Edit Delivery #'+id+'</h3><div style="max-width:600px">' +
+    inp('Product Name','edProduct',d.product_name) + inp('Origin Location','edOrigin',d.origin_location) + inp('Current Location','edCurrent',d.current_location,'Where the goods are now') + inp('Destination','edDest',d.destination) +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem"><div class="form-group"><label>Dispatch Date</label><input id="edDispatch" type="datetime-local" value="'+(d.dispatch_date||'')+'" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div><div class="form-group"><label>Est. Delivery</label><input id="edEstDel" type="datetime-local" value="'+(d.estimated_delivery||'')+'" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div></div>' +
+    inp('Carrier','edCarrier',d.carrier) + inp('Tracking #','edTrack',d.tracking_number) + inp('Driver Name','edDriver',d.driver_name) + inp('Driver Phone','edDriverPhone',d.driver_phone) +
+    '<div class="form-group"><label>Notes</label><textarea id="edNotes" rows="2" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;resize:vertical;font-family:inherit">'+(d.notes||'')+'</textarea></div>' +
+    '<div style="display:flex;gap:0.5rem"><button class="btn btn-primary" onclick="window.doEditDelivery('+id+')">Save</button><button class="btn btn-outline" onclick="window.loadAdminDeliveries()">Cancel</button></div></div>';
+};
+
+window.doEditDelivery = async function(id) {
+  const v=k=>document.getElementById(k)?.value;
+  const fields={product_name:v('edProduct'),origin_location:v('edOrigin'),current_location:v('edCurrent'),destination:v('edDest'),dispatch_date:v('edDispatch')||null,estimated_delivery:v('edEstDel')||null,carrier:v('edCarrier'),tracking_number:v('edTrack'),driver_name:v('edDriver'),driver_phone:v('edDriverPhone'),notes:v('edNotes')};
+  try{await fetch('/api/admin/deliveries/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});showToast('Delivery updated','success');window.loadAdminDeliveries();}catch(e){showToast('Error','error');}
+};
+
+window.updateDeliveryStatus = function(id) {
+  const el = document.getElementById('adminContent');
+  el.innerHTML = '<h3 style="color:#00d4ff;margin-bottom:1rem">📍 Update Delivery Status #'+id+'</h3><div style="max-width:500px">' +
+    '<div class="form-group"><label>Status</label><select id="dsStatus" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"><option value="preparing">📦 Preparing</option><option value="dispatched">🚀 Dispatched</option><option value="in_transit">🚛 In Transit</option><option value="out_for_delivery">🚗 Out for Delivery</option><option value="delivered">✅ Delivered</option></select></div>' +
+    '<div class="form-group"><label>Current Location</label><input id="dsLocation" placeholder="Where is it now?" style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div>' +
+    '<div class="form-group"><label>Notes</label><input id="dsNotes" placeholder="Update notes..." style="width:100%;padding:0.6rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff"></div>' +
+    '<div style="display:flex;gap:0.5rem"><button class="btn btn-primary" onclick="window.doUpdateDeliveryStatus('+id+')">Update</button><button class="btn btn-outline" onclick="window.loadAdminDeliveries()">Cancel</button></div></div>';
+};
+
+window.doUpdateDeliveryStatus = async function(id) {
+  const data={status:document.getElementById('dsStatus').value};
+  const loc=document.getElementById('dsLocation').value; if(loc)data.current_location=loc;
+  const notes=document.getElementById('dsNotes').value; if(notes)data.notes=notes;
+  if(data.status==='delivered')data.delivered_date=new Date().toISOString().slice(0,19).replace('T',' ');
+  try{await fetch('/api/admin/deliveries/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});showToast('Status updated! User notified.','success');window.loadAdminDeliveries();}catch(e){showToast('Error','error');}
+};
+
+window.generateReceipt = async function(id) {
+  if(!confirm('Generate receipt and send to user?'))return;
+  try{const r=await(await fetch('/api/admin/deliveries/'+id+'/receipt',{method:'POST'})).json();if(r.error)return showToast(r.error,'error');showToast('Receipt generated & sent to user!','success');window.loadAdminDeliveries();}catch(e){showToast('Error','error');}
+};
+
+window.authenticateSale = async function(id) {
+  if(!confirm('Authenticate this sale? This will mark as delivered and send receipt to user.'))return;
+  try{const r=await(await fetch('/api/admin/deliveries/'+id+'/authenticate-sale',{method:'POST'})).json();if(r.error)return showToast(r.error,'error');showToast('Sale authenticated! Receipt sent.','success');window.loadAdminDeliveries();}catch(e){showToast('Error','error');}
+};
+
+window.deleteDelivery = async function(id) {
+  if(!confirm('Delete this delivery?'))return;
+  await fetch('/api/admin/deliveries/'+id,{method:'DELETE'});showToast('Delivery deleted');window.loadAdminDeliveries();
+};
 
 // === TICKETS ===
 window.loadAdminTickets = async function() {

@@ -1479,6 +1479,118 @@ app.post('/api/admin/external-api-key/regenerate', adminMiddleware, async c => {
   return c.json({api_key: newKey, message: 'API key regenerated'});
 });
 
+// ===================== DELIVERY MANAGEMENT =====================
+// Get deliveries for a user
+app.get('/api/user/deliveries', authMiddleware, async c => {
+  const u = c.get('user');
+  const deliveries = await c.env.DB.prepare('SELECT * FROM deliveries WHERE user_id=? ORDER BY created_at DESC').bind(u.id).all();
+  return c.json(deliveries.results);
+});
+
+// Admin: list all deliveries
+app.get('/api/admin/deliveries', adminMiddleware, async c => {
+  const deliveries = await c.env.DB.prepare('SELECT d.*, u.username, u.email FROM deliveries d JOIN users u ON u.id=d.user_id ORDER BY d.created_at DESC LIMIT 100').all();
+  return c.json(deliveries.results);
+});
+
+// Admin: create delivery for an order
+app.post('/api/admin/deliveries', adminMiddleware, async c => {
+  const data = await c.req.json();
+  if (!data.user_id) return c.json({error:'user_id required'}, 400);
+  const r = await c.env.DB.prepare(
+    'INSERT INTO deliveries (order_id,user_id,product_name,product_price,shipping_fee,status,origin_location,destination,dispatch_date,estimated_delivery,carrier,tracking_number,driver_name,driver_phone,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).bind(
+    data.order_id||null, data.user_id, data.product_name||'', Number(data.product_price)||0, Number(data.shipping_fee)||0,
+    data.status||'preparing', data.origin_location||'', data.destination||'',
+    data.dispatch_date||null, data.estimated_delivery||null, data.carrier||'', data.tracking_number||'',
+    data.driver_name||'', data.driver_phone||'', data.notes||''
+  ).run();
+  // Send inbox notification
+  await c.env.DB.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin) VALUES (?,?,?,?,1)').bind(
+    data.user_id, '🚚 Delivery Created',
+    `Your delivery for ${data.product_name||'order'} has been created. Status: Preparing. ${data.origin_location ? 'Origin: '+data.origin_location : ''}`,
+    'order'
+  ).run();
+  return c.json({id:r.meta.last_row_id, message:'Delivery created'}, 201);
+});
+
+// Admin: update delivery status
+app.patch('/api/admin/deliveries/:id', adminMiddleware, async c => {
+  const id = c.req.param('id');
+  const data = await c.req.json();
+  const fields = [];
+  const vals = [];
+  for (const k of ['status','origin_location','current_location','destination','dispatch_date','estimated_delivery','delivered_date','carrier','tracking_number','driver_name','driver_phone','notes','receipt_generated']) {
+    if (data[k] !== undefined) { fields.push(k+'=?'); vals.push(data[k]); }
+  }
+  if (!fields.length) return c.json({error:'No fields to update'}, 400);
+  fields.push('updated_at=?'); vals.push(now());
+  await c.env.DB.prepare('UPDATE deliveries SET '+fields.join(',')+' WHERE id=?').bind(...vals, id).run();
+
+  // Send inbox notification on status change
+  if (data.status) {
+    const d = await c.env.DB.prepare('SELECT * FROM deliveries WHERE id=?').bind(id).first();
+    if (d) {
+      const statusLabels = {
+        preparing: '📦 Preparing your order',
+        dispatched: '🚀 Order dispatched',
+        in_transit: '🚛 In transit',
+        out_for_delivery: '🚗 Out for delivery',
+        delivered: '✅ Delivered!'
+      };
+      const statusDescs = {
+        preparing: 'Your order is being prepared for shipping.',
+        dispatched: `Your order has been dispatched${d.origin_location?' from '+d.origin_location:''}.`,
+        in_transit: `Your order is in transit${d.current_location?'. Current location: '+d.current_location:''}.`,
+        out_for_delivery: 'Your order is out for delivery! Expect it soon.',
+        delivered: `Your order has been delivered${d.delivered_date?' on '+d.delivered_date:''}!`
+      };
+      await c.env.DB.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin) VALUES (?,?,?,?,1)').bind(
+        d.user_id, statusLabels[data.status]||'📦 Delivery Update', statusDescs[data.status]||'Your delivery status has been updated.', 'order'
+      ).run();
+    }
+  }
+  return c.json({message:'Delivery updated'});
+});
+
+// Admin: generate receipt
+app.post('/api/admin/deliveries/:id/receipt', adminMiddleware, async c => {
+  const id = c.req.param('id');
+  const d = await c.env.DB.prepare('SELECT d.*, u.username, u.email, u.full_name FROM deliveries d JOIN users u ON u.id=d.user_id WHERE d.id=?').bind(id).first();
+  if (!d) return c.json({error:'Delivery not found'}, 404);
+  await c.env.DB.prepare('UPDATE deliveries SET receipt_generated=1, updated_at=? WHERE id=?').bind(now(), id).run();
+  // Send inbox with receipt
+  const receiptNo = 'RCP-' + String(id).padStart(6,'0');
+  const receiptBody = `Receipt #${receiptNo}\n\nProduct: ${d.product_name}\nProduct Price: $${Number(d.product_price).toFixed(2)}\nShipping Fee: $${Number(d.shipping_fee).toFixed(2)}\nTotal: $${(Number(d.product_price)+Number(d.shipping_fee)).toFixed(2)}\n\nStatus: ${d.status}\nOrigin: ${d.origin_location||'N/A'}\nDestination: ${d.destination||'N/A'}\nCarrier: ${d.carrier||'N/A'}\nTracking #: ${d.tracking_number||'N/A'}\n${d.delivered_date ? 'Delivered: '+d.delivered_date : ''}\n\nThank you for your order!`;
+  await c.env.DB.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin) VALUES (?,?,?,?,1)').bind(
+    d.user_id, `🧾 Receipt #${receiptNo}`, receiptBody, 'order'
+  ).run();
+  return c.json({receipt_no: receiptNo, delivery: d, message:'Receipt generated and sent to user'});
+});
+
+// Admin: authenticate sale (confirm and send to user)
+app.post('/api/admin/deliveries/:id/authenticate-sale', adminMiddleware, async c => {
+  const id = c.req.param('id');
+  const d = await c.env.DB.prepare('SELECT d.*, u.username, u.email, u.full_name FROM deliveries d JOIN users u ON u.id=d.user_id WHERE d.id=?').bind(id).first();
+  if (!d) return c.json({error:'Delivery not found'}, 404);
+  // Mark as delivered
+  await c.env.DB.prepare('UPDATE deliveries SET status=?, delivered_date=?, updated_at=? WHERE id=?').bind('delivered', now(), now(), id).run();
+  // Send authenticated sale notification with receipt
+  const receiptNo = 'RCP-' + String(id).padStart(6,'0');
+  const total = Number(d.product_price) + Number(d.shipping_fee);
+  const saleBody = `✅ Sale Authenticated & Confirmed\n\nReceipt #${receiptNo}\nProduct: ${d.product_name}\nAmount: $${total.toFixed(2)}\nStatus: Delivered ✓\nDelivered: ${now()}\n\nThis sale has been verified and authenticated by Quantum Space X admin.\n\nThank you for your purchase!`;
+  await c.env.DB.prepare('INSERT INTO user_messages (user_id,title,body,type,from_admin) VALUES (?,?,?,?,1)').bind(
+    d.user_id, '✅ Sale Authenticated — ' + d.product_name, saleBody, 'order'
+  ).run();
+  return c.json({message:'Sale authenticated, delivery marked as delivered, receipt sent to user', receipt_no: receiptNo});
+});
+
+// Admin: delete delivery
+app.delete('/api/admin/deliveries/:id', adminMiddleware, async c => {
+  await c.env.DB.prepare('DELETE FROM deliveries WHERE id=?').bind(c.req.param('id')).run();
+  return c.json({message:'Delivery deleted'});
+});
+
 // ===================== STATIC ASSETS + SPA FALLBACK =====================
 // [assets] binding serves static files. For non-API routes, serve via ASSETS binding.
 export default {

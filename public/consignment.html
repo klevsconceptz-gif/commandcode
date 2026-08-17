@@ -15,6 +15,7 @@
   <div style="display:flex;gap:0.5rem;align-items:center">
     <button class="btn btn-outline btn-sm" onclick="window.consignShowCart()" style="position:relative">🛒 Cart<span id="consignCartCount" style="display:none">0</span></button>
     <button class="btn btn-outline btn-sm" onclick="window.consignShowTrack()">📦 Track Order</button>
+    <button class="btn btn-outline btn-sm" onclick="window.consignShowDeliveries()">🚚 My Deliveries</button>
   </div>
 </div>
 <div id="consignContent"></div>
@@ -430,6 +431,49 @@ window.consignTrackOrder = async function() {
   } catch(e) {
     div.innerHTML = `<div class="glass" style="padding:1.5rem;text-align:center"><p style="color:#ff3232">Error tracking order. Please try again.</p></div>`;
   }
+};
+
+
+// ========== MY DELIVERIES ==========
+window.consignShowDeliveries = async function() {
+  const el = document.getElementById('consignContent');
+  const token = localStorage.getItem('token');
+  if (!token) {
+    el.innerHTML = '<div class="glass" style="padding:3rem;text-align:center"><p style="font-size:2rem;margin:0">🔒</p><h3 style="color:#e0e0e0;margin:1rem 0 0.5rem">Sign in to view your deliveries</h3><p style="color:#a0a0c0;margin-bottom:1.5rem">Log in to track your delivery status and view receipts</p><button class="btn btn-primary" onclick="showLogin()">Sign In</button></div>';
+    return;
+  }
+  el.innerHTML = '<h3 style="color:#00d4ff">🚚 My Deliveries</h3><p style="color:#a0a0c0">Loading...</p>';
+  try {
+    const deliveries = await (await fetch('/api/user/deliveries', {headers:{'Authorization':'Bearer '+token}})).json();
+    if (!deliveries.length) {
+      el.innerHTML = '<div class="glass" style="padding:3rem;text-align:center"><p style="font-size:2rem;margin:0">🚚</p><h3 style="color:#e0e0e0;margin:1rem 0 0.5rem">No deliveries yet</h3><p style="color:#a0a0c0;margin-bottom:1.5rem">Place an order to see delivery tracking here</p><button class="btn btn-primary" onclick="window.consignShowCatalog()">Browse Products</button></div>';
+      return;
+    }
+    let html = '<h3 style="color:#00d4ff;margin-bottom:1.5rem">🚚 My Deliveries</h3>';
+    deliveries.forEach(d => {
+      const sc = {preparing:'#f59e0b',dispatched:'#e879f9',in_transit:'#00d4ff',out_for_delivery:'#7b2ff7',delivered:'#22c55e'}[d.status]||'#a0a0c0';
+      const si = {preparing:'📦',dispatched:'🚀',in_transit:'🚛',out_for_delivery:'🚗',delivered:'✅'}[d.status]||'📦';
+      const sl = {preparing:'Preparing',dispatched:'Dispatched',in_transit:'In Transit',out_for_delivery:'Out for Delivery',delivered:'Delivered'}[d.status]||d.status;
+      htmlD += '<div class="glass" style="padding:1.5rem;margin-bottom:1rem;border-left:3px solid '+sc+'">' +
+        '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.8rem"><span style="font-size:1.5rem">'+si+'</span><h4 style="color:#fff;margin:0">'+(d.product_name||'Delivery #'+d.id)+'</h4><span style="background:'+sc+';color:#000;font-size:0.7rem;padding:3px 10px;border-radius:20px;font-weight:700">'+sl.toUpperCase()+'</span>' + (d.receipt_generated?'<span style="background:#22c55e;color:#000;font-size:0.65rem;padding:2px 8px;border-radius:20px;font-weight:700">🧾 RECEIPT</span>':'') + '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 6fr;gap:0.5rem;font-size:0.85rem">' +
+        '<div><span style="color:#a0a0c0">Product:</span> <span style="color:#fff">$'+Number(d.product_price).toFixed(2)+'</span></div>' +
+        '<div><span style="color:#f7931a">Shipping (₿):</span> <span style="color:#fff">$'+Number(d.shipping_fee).toFixed(2)+'</span></div>' +
+        '<div><span style="color:#a0a0c0">From:</span> <span style="color:#e0e0e0">'+(d.origin_location||'—')+'</span></div>' +
+        '<div><span style="color:#a0a0c0">To:</span> <span style="color:#e0e0e0">'+(d.destination||'—')+'</span></div>' +
+        (d.current_location?'<div style="grid-column:span 2"><span style="color:#00d4ff">📍 Current Location:</span> <span style="color:#fff">'+d.current_location+'</span></div>':'') +
+        (d.carrier?'<div><span style="color:#a0a0c0">Carrier:</span> <span style="color:#e0e0e0">'+d.carrier+'</span></div>':'') +
+        (d.tracking_number?'<div><span style="color:#a0a0c0">Tracking #:</span> <span style="color:#00d4ff;font-family:monospace">'+d.tracking_number+'</span></div>':'') +
+        (d.driver_name?'<div><span style="color:#a0a0c0">Driver:</span> <span style="color:#e0e0e0">'+d.driver_name+'</span></div>':'') +
+        (d.driver_phone?'<div><span style="color:#a0a0c0">Driver Phone:</span> <a href="tel:'+d.driver_phone+'" style="color:#00d4ff">'+d.driver_phone+'</a></div>':'') +
+        (d.estimated_delivery?'<div style="grid-column:span 2"><span style="color:#f59e0b">📅 Est. Delivery:</span> <span style="color:#fff">'+new Date(d.estimated_delivery).toLocaleString()+'</span></div>':'') +
+        (d.delivered_date?'<div style="grid-column:span 2"><span style="color:#22c55e">✅ Delivered:</span> <span style="color:#fff">'+new Date(d.delivered_date).toLocaleString()+'</span></div>':'') +
+        '</div>' +
+        (d.notes?'<p style="color:#555;font-size:0.8rem;margin:0.8rem 0 0;border-top:1px solid rgba(255,255,255,0.05);padding-top:0.5rem">📝 '+d.notes+'</p>':'') +
+        '</div>';
+    });
+    el.innerHTML = htmlD;
+  } catch(e) { el.innerHTML = '<h3 style="color:#00d4ff">🚚 My Deliveries</h3><p style="color:#ff3232">Error loading deliveries</p>'; }
 };
 
 // Init
