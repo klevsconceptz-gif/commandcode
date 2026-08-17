@@ -1,4 +1,4 @@
-<!-- Consignment Store — Full Store + Checkout + Order Tracking -->
+<!-- Delivery Store — Full Store + Checkout + Order Tracking -->
 <style>
   .consign-product-card{transition:transform .2s,box-shadow .2s}
   .consign-product-card:hover{transform:translateY(-4px);box-shadow:0 8px 32px rgba(0,212,255,0.15)}
@@ -9,8 +9,8 @@
 <div style="max-width:1200px;margin:0 auto;padding:clamp(1rem,3vw,2rem)">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem;flex-wrap:wrap;gap:1rem">
   <div>
-    <h2 style="color:#00d4ff;margin:0 0 0.3rem;display:flex;align-items:center;gap:0.5rem"><img src="/images/logo.png" alt="QS" style="height:28px;width:28px;object-fit:contain;border-radius:6px"> Consignment Store</h2>
-    <p style="color:#a0a0c0;margin:0;font-size:0.9rem">Premium Tesla & Optimus products — Consignment pricing with secure checkout</p>
+    <h2 style="color:#00d4ff;margin:0 0 0.3rem;display:flex;align-items:center;gap:0.5rem"><img src="/images/logo.png" alt="QS" style="height:28px;width:28px;object-fit:contain;border-radius:6px"> Delivery Store</h2>
+    <p style="color:#a0a0c0;margin:0;font-size:0.9rem">Premium Tesla & Optimus products — Delivery pricing with secure checkout</p>
   </div>
   <div style="display:flex;gap:0.5rem;align-items:center">
     <button class="btn btn-outline btn-sm" onclick="window.consignShowCart()" style="position:relative">🛒 Cart<span id="consignCartCount" style="display:none">0</span></button>
@@ -330,7 +330,7 @@ window.consignPlaceOrder = async function() {
     el.innerHTML = `<div style="max-width:600px;margin:0 auto;text-align:center">
       <div style="font-size:3rem;margin-bottom:1rem">✅</div>
       <h2 style="color:#22c55e;margin:0 0 0.5rem">Order Placed Successfully!</h2>
-      <p style="color:#a0a0c0;font-size:1rem;margin-bottom:2rem">Thank you, ${name}! Your consignment order has been submitted.</p>
+      <p style="color:#a0a0c0;font-size:1rem;margin-bottom:2rem">Thank you, ${name}! Your delivery order has been submitted.</p>
       <div class="glass" style="padding:1.5rem;text-align:left;margin-bottom:1.5rem">
         <h4 style="color:#00d4ff;margin:0 0 1rem">📦 Order Details</h4>
         <p style="color:#e0e0e0;margin:0 0 0.5rem"><strong>Order Ref:</strong> <span style="color:#00d4ff;font-family:monospace">${orderResult.ref}</span></p>
